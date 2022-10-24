@@ -12,7 +12,6 @@ models = ['lstm', 'decision_tree', 'sgdreg', 'xgboost']
 descriptor = 'morgan_onehot_mac'
 labels = ['7k', '50k', '350k']
 training_sizes = [7000, 50000, 350000]
-training_sizes = [7000, 50000, 350000]
 training_sizes_other = [7000, 10000, 50000]
 # labels_for_times = ['lstm_7k', 'lstm_50k', 'lstm_350k', 'decision_tree_7k',
 #                     'decision_tree_50k', 'decision_tree_350k',
