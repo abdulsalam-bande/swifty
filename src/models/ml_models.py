@@ -97,8 +97,13 @@ class OtherModels:
             pickle.dump((rg, descriptor_dict), file)
         logger.info(f"Training is Done! {self.identifier}")
 
-        data_df = pd.read_csv(self.data_csv)
-        self.train_for_shap_analyses, self.test_for_shap_analyses = train_test_split(data_df, test_size=self.test_size,
+        sample_size = 50000
+        if len(pd.read_csv(self.data_csv)) > 4500000:
+            sample_size = 100000
+
+        shap_test_size = sample_size * 0.8
+        data_df = pd.read_csv(self.data_csv).sample(sample_size)
+        self.train_for_shap_analyses, self.test_for_shap_analyses = train_test_split(data_df, test_size=shap_test_size,
                                                                                      random_state=42)
         train_smiles = [list(compute_descriptors(Chem.MolFromSmiles(smile)).values()) for smile in
                         self.train_for_shap_analyses['smile']]
@@ -151,6 +156,7 @@ class OtherModels:
         return all_models_predictions
 
     def shap_analyses(self):
+        logger.info('Starting Shap Analyses.')
         smiles = [list(compute_descriptors(Chem.MolFromSmiles(smile)).values()) for smile in
                   self.test_for_shap_analyses['smile']]
         normalized_descriptors = self.scaler.fit_transform(smiles)
@@ -206,6 +212,7 @@ class OtherModels:
         plt.close()
 
     def evaluate_structural_diversity(self):
+        logger.info('Starting Structural Diversity Analyses...')
         tsne_visualization_dir = f"{self.shap_analyses_dir}{self.identifier}_tsne_visualization.png"
         tsne_dir = f"{self.shap_analyses_dir}{self.identifier}_tsne_data.csv"
 
@@ -272,14 +279,6 @@ class OtherModels:
         # Create a scatter plot
         plt.figure(figsize=(10, 6))
 
-        # Uncomment the following line for a simple scatter plot with smaller, transparent points
-        # plt.scatter(df['mol_weight'], df['docking_score'], alpha=0.1, s=10)
-
-        # Uncomment the following lines for a hexbin plot
-        # hb = plt.hexbin(df['mol_weight'], df['docking_score'], gridsize=50, cmap='inferno')
-        # cb = plt.colorbar(hb)
-        # cb.set_label('Density')
-
         # Uncomment the following lines for a 2D density plot
         sns.kdeplot(x=df['mol_weight'], y=df['docking_score'], cmap='inferno', fill=True)
 
@@ -287,12 +286,7 @@ class OtherModels:
         plt.xlabel('Molecular Weight')
         plt.ylabel('Docking Score')
         plt.grid(True)
-
-        # Save the figure
         plt.savefig(size_cor_plot_dir)
-
-        # Show the plot
-        plt.show()
 
     def save_results(self):
         identifier_test_metrics = f"{self.testing_metrics_dir}{self.identifier}_test_metrics.csv"

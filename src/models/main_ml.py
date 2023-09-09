@@ -7,12 +7,12 @@ from sklearn.tree import DecisionTreeRegressor
 
 from ml_models import OtherModels
 
-training_metrics_dir = '../../results2/validation_metrics/'
-testing_metrics_dir = '../../results2/testing_metrics/'
-test_predictions_dir = '../../results2/test_predictions/'
-project_info_dir = '../../results2/project_info/'
-serialized_models_path = '../../results2/serialized_models/'
-shap_analyses_dir = '../../results2/shap_analyses/'
+training_metrics_dir = '../../results/validation_metrics/'
+testing_metrics_dir = '../../results/testing_metrics/'
+test_predictions_dir = '../../results/test_predictions/'
+project_info_dir = '../../results/project_info/'
+serialized_models_path = '../../results/serialized_models/'
+shap_analyses_dir = '../../results/shap_analyses/'
 dataset_dir = "../../datasets/"
 
 os.makedirs(training_metrics_dir, exist_ok=True)
@@ -46,7 +46,6 @@ def train_ml(training_metrics_dir, testing_metrics_dir, test_predictions_dir, pr
         model.diagnose()
     model.test()
     model.shap_analyses()
-    model.evaluate_structural_diversity()
     model.save_results()
 
 

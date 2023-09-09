@@ -7,17 +7,19 @@ from swift_dock_logger import swift_dock_logger
 
 logger = swift_dock_logger()
 
-training_metrics_dir = '../../results2/validation_metrics/'
-testing_metrics_dir = '../../results2/testing_metrics/'
-test_predictions_dir = '../../results2/test_predictions/'
-project_info_dir = '../../results2/project_info/'
-serialized_models_path = '../../results2/serialized_models/'
-dataset_dir = "../../datasets"
+training_metrics_dir = '../../results/validation_metrics/'
+testing_metrics_dir = '../../results/testing_metrics/'
+test_predictions_dir = '../../results/test_predictions/'
+project_info_dir = '../../results/project_info/'
+serialized_models_path = '../../results/serialized_models/'
+shap_analyses_dir = '../../results/shap_analyses/'
+dataset_dir = "../../datasets/"
 os.makedirs(training_metrics_dir, exist_ok=True)
 os.makedirs(testing_metrics_dir, exist_ok=True)
 os.makedirs(test_predictions_dir, exist_ok=True)
 os.makedirs(project_info_dir, exist_ok=True)
 os.makedirs(serialized_models_path, exist_ok=True)
+os.makedirs(shap_analyses_dir, exist_ok=True)
 
 
 def str2bool(v):
@@ -51,6 +53,7 @@ def train_models(args, target, descriptor_data, size):
     number_of_folds = 5
     identifier = f"lstm_{target}_{get_descriptor_name(descriptor_data[1])}_{size}"
     logger.info(f"Identifier {identifier}")
+    data_csv = f"{dataset_dir}{target}.csv"
 
     path_to_csv_file = f"../../datasets/{target}.csv"
     data_all = pd.read_csv(path_to_csv_file).dropna()
@@ -62,17 +65,18 @@ def train_models(args, target, descriptor_data, size):
     model = SwiftDock(
         training_metrics_dir, testing_metrics_dir, test_predictions_dir,
         project_info_dir, data_all, train_size, test_size, val_size, identifier,
-        number_of_folds, descriptor_data[1], descriptor_data[0], serialized_models_path, args.cross_validate
-    )
+        number_of_folds, descriptor_data[1], descriptor_data[0], serialized_models_path, args.cross_validate,
+        shap_analyses_dir, data_csv=data_csv)
 
     model.split_data(cross_validate=args.cross_validate)
     model.train()
+    model.shap_analyses()
 
     if args.cross_validate:
         model.diagnose()
     model.test()
+    model.shap_analyses()
     model.save_results()
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="train code for fast docking",

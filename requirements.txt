@@ -6,3 +6,4 @@ seaborn==0.12.2
 shap==0.42.0
 torch==1.9.0
 deepchem==2.7.2.dev20230831192351
+ipython

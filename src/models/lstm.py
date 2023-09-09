@@ -1,17 +1,28 @@
+import copy
 import time
 
+import numpy as np
+import pandas as pd
+import seaborn as sns
+import shap
 import torch
 import torch.nn as nn
-from data_generator import DataGenerator, InferenceDataGenerator
+from matplotlib import pyplot as plt
+from rdkit import Chem, DataStructs
+from rdkit.Chem import AllChem, MACCSkeys
+from rdkit.Chem import Descriptors
+from sklearn.manifold import TSNE
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from torch.utils.data import DataLoader
+
+from data_generator import DataGenerator, InferenceDataGenerator, ShapAnalysesDataGenerator
 from model import AttentionNetwork
+from smiles_featurizers import compute_descriptors
+from swift_dock_logger import swift_dock_logger
 from trainer import train_model
 from utils import get_training_and_test_data, test_model, calculate_metrics, create_test_metrics, \
     create_fold_predictions_and_target_df, save_dict, get_data_splits, inference
-from torch.utils.data import DataLoader
-import numpy as np
-import pandas as pd
-import copy
-from swift_dock_logger import swift_dock_logger
 
 logger = swift_dock_logger()
 
@@ -19,7 +30,7 @@ logger = swift_dock_logger()
 class SwiftDock:
     def __init__(self, training_metrics_dir, testing_metrics_dir, test_predictions_dir, project_info_dir, target_path,
                  train_size, test_size, val_size, identifier, number_of_folds, descriptor, feature_dim,
-                 serialized_models_path, cross_validate):
+                 serialized_models_path, cross_validate, shap_analyses_dir, data_csv):
         self.target_path = target_path
         self.training_metrics_dir = training_metrics_dir
         self.testing_metrics_dir = testing_metrics_dir
@@ -44,6 +55,10 @@ class SwiftDock:
         self.single_mode_time = None
         self.single_model = None
         self.cross_validate = cross_validate
+        self.shap_analyses_dir = shap_analyses_dir
+        self.model_for_shap_analyses = None
+        self.data_csv = data_csv
+        self.scaler = StandardScaler()
 
     def split_data(self, cross_validate):
         if cross_validate:
@@ -70,6 +85,28 @@ class SwiftDock:
                     'optimizer_state_dict': optimizer.state_dict(), 'descriptor': self.descriptor,
                     'num_of_features': self.feature_dim}, identifier_model_path)
         self.single_model = model
+
+        sample_size = 50000
+        if len(pd.read_csv(self.data_csv)) > 4500000:
+            sample_size = 100000
+
+        shap_test_size = sample_size * 0.8
+        shap_number_of_epochs = 9
+        # shap model
+        data_df = pd.read_csv(self.data_csv).sample(sample_size)
+        self.train_for_shap_analyses, self.test_for_shap_analyses = train_test_split(data_df, test_size=shap_test_size,
+                                                                                     random_state=42)
+        train_smiles = [list(compute_descriptors(Chem.MolFromSmiles(smile)).values()) for smile in
+                        self.train_for_shap_analyses['smile']]
+        train_docking_scores = self.train_for_shap_analyses['docking_score'].tolist()
+        normalized_descriptors = self.scaler.fit_transform(train_smiles)
+        self.model_for_shap_analyses = AttentionNetwork(16)
+        shap_model_optimizer = torch.optim.Adam(self.model_for_shap_analyses.parameters(), lr=0.001)
+
+        shap_data_gen = ShapAnalysesDataGenerator(normalized_descriptors, train_docking_scores)  # train
+        shap_dataloader = DataLoader(shap_data_gen, batch_size=32, shuffle=True, num_workers=6)
+        self.model_for_shap_analyses, _ = train_model(shap_dataloader, self.model_for_shap_analyses, criterion,
+                                                      shap_model_optimizer, shap_number_of_epochs)
 
     def diagnose(self):
         logger.info('Starting diagnosis...')
@@ -134,6 +171,145 @@ class SwiftDock:
         self.test_metrics = metrics_dict_test
         self.test_predictions_and_target_df = predictions_and_target_df
 
+    def shap_analyses(self):
+        logger.info('Starting Shap Analyses...')
+        smiles = [list(compute_descriptors(Chem.MolFromSmiles(smile)).values()) for smile in
+                  self.test_for_shap_analyses['smile']]
+        normalized_descriptors = self.scaler.fit_transform(smiles)
+
+        def model_predict(smiles):
+            smiles_tensor = torch.tensor(smiles, dtype=torch.float32).unsqueeze(0)
+            self.model_for_shap_analyses.eval()
+            with torch.no_grad():
+                outputs = self.model_for_shap_analyses(smiles_tensor)
+            outputs = outputs.cpu().numpy()
+
+            return outputs
+
+        # Create a masker for the dataset
+        masker = shap.maskers.Independent(data=normalized_descriptors)
+        explainer = shap.explainers.Permutation(model_predict, masker)
+        shap_values = explainer.shap_values(normalized_descriptors)
+
+        # File paths for output
+        shap_analyses_csv_dir = f"{self.shap_analyses_dir}{self.identifier}_shap_analyses.csv"
+        shap_analyses_summary_plot = f"{self.shap_analyses_dir}{self.identifier}_shap_summary_plot.png"
+        shap_analyses_feature_importance = f"{self.shap_analyses_dir}{self.identifier}_shap_feature_importance.png"
+        feature_names = [
+            "mol_weight",
+            "num_atoms",
+            "num_bonds",
+            "num_rotatable_bonds",
+            "num_h_donors",
+            "num_h_acceptors",
+            "logp",
+            "mr",
+            "tpsa",
+            "num_rings",
+            "num_aromatic_rings",
+            "hall_kier_alpha",
+            "fraction_csp3",
+            "num_nitrogens",
+            "num_oxygens",
+            "num_sulphurs"
+        ]
+
+        # Convert normalized_descriptors to DataFrame with feature names
+        normalized_descriptors_df = pd.DataFrame(normalized_descriptors, columns=feature_names)
+
+        # SHAP DataFrame
+        shap_df = pd.DataFrame(shap_values, columns=feature_names)
+        avg_shap = shap_df.abs().mean().sort_values(ascending=False)
+        avg_shap.to_csv(shap_analyses_csv_dir)
+
+        # Generate and save SHAP plots
+        shap.summary_plot(shap_values, normalized_descriptors_df, plot_type="dot", show=False)
+        plt.gcf().tight_layout()
+        plt.gcf().savefig(shap_analyses_summary_plot)
+        plt.close()
+
+        shap.summary_plot(shap_values, normalized_descriptors_df, plot_type="bar", show=False)
+        plt.gcf().tight_layout()
+        plt.gcf().savefig(shap_analyses_feature_importance)
+        plt.close()
+
+    def evaluate_structural_diversity(self):
+        logger.info('Starting Structural Diversity Analyses...')
+        tsne_visualization_dir = f"{self.shap_analyses_dir}{self.identifier}_tsne_visualization.png"
+        tsne_dir = f"{self.shap_analyses_dir}{self.identifier}_tsne_data.csv"
+
+        def __get_circular_fingerprints(data):
+            fps = []
+            for smile in data['smile']:
+                mol = Chem.MolFromSmiles(smile)
+                fp = AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=2048)
+                arr = np.zeros((1,))
+                DataStructs.ConvertToNumpyArray(fp, arr)
+                fps.append(arr)
+            return np.array(fps)
+
+        def __get_mac_fingerprints(data):
+            fps = []
+            for smile in data['smile']:
+                mol = Chem.MolFromSmiles(smile)
+                if mol is None:  # Invalid SMILES string
+                    print(f"Warning: Invalid SMILES skipped: {smile}")
+                    continue
+                maccs_key = MACCSkeys.GenMACCSKeys(mol)
+                arr = np.zeros((1,), dtype=np.int8)
+                DataStructs.ConvertToNumpyArray(maccs_key, arr)
+                fps.append(arr)
+            return np.array(fps)
+
+        # Assuming train_for_shap_analyses and test_for_shap_analyses are your training and test DataFrames
+        train_fps = __get_mac_fingerprints(self.train_for_shap_analyses)
+        test_fps = __get_mac_fingerprints(self.test_for_shap_analyses)
+
+        # 2. t-SNE Dimensionality Reduction
+        all_fps = np.vstack([train_fps, test_fps])
+        tsne = TSNE(n_components=2, random_state=42).fit_transform(all_fps)
+
+        # Save t-SNE data to the directory specified in 'tsne_dir' as a CSV file
+        pd.DataFrame(tsne, columns=['Dimension_1', 'Dimension_2']).to_csv(tsne_dir, index=False)
+
+        # 3. Visualization
+        plt.figure(figsize=(10, 7))
+        plt.scatter(tsne[:len(train_fps), 0], tsne[:len(train_fps), 1], color='blue', label='Training Data', alpha=0.5)
+        plt.scatter(tsne[len(train_fps):, 0], tsne[len(train_fps):, 1], color='red', label='Test Data', alpha=0.5)
+        plt.legend(loc='upper right')
+        plt.xlabel('t-SNE Component 1')
+        plt.ylabel('t-SNE Component 2')
+        plt.title('t-SNE Visualization of Training vs Test Data')
+
+        # Save dat
+        plt.savefig(tsne_visualization_dir, dpi=300, bbox_inches='tight')
+        pd.DataFrame(tsne, columns=['Dimension_1', 'Dimension_2']).to_csv(tsne_dir, index=False)
+
+    def plot_docking_vs_mol_weight(self):
+        logger.info(f"Started creating plot for mol weights of {self.identifier}")
+        size_cor_plot_dir = f"{self.shap_analyses_dir}{self.identifier}_mol_weight.png"
+        df = pd.read_csv(self.data_csv)
+        mol_weights = []
+        for smile in df['smile']:
+            mol = Chem.MolFromSmiles(smile)
+            mol_weight = Descriptors.MolWt(mol)
+            mol_weights.append(mol_weight)
+
+            # Add the molecular weights as a new column to the DataFrame
+        df['mol_weight'] = mol_weights
+
+        # Create a scatter plot
+        plt.figure(figsize=(10, 6))
+
+        # Uncomment the following lines for a 2D density plot
+        sns.kdeplot(x=df['mol_weight'], y=df['docking_score'], cmap='inferno', fill=True)
+
+        plt.title('Docking Score vs Molecular Weight')
+        plt.xlabel('Molecular Weight')
+        plt.ylabel('Docking Score')
+        plt.grid(True)
+        plt.savefig(size_cor_plot_dir)
+
     def save_results(self):
         if self.cross_validate:
             identifier_train_val_metrics = f"{self.training_metrics_dir}{self.identifier}_cross_validation_metrics.csv"
@@ -142,7 +318,8 @@ class SwiftDock:
         save_dict(self.test_metrics, identifier_test_metrics)
         identifier_test_pred_target_df = f"{self.test_predictions_dir}{self.identifier}_test_predictions.csv"
         self.test_predictions_and_target_df.to_csv(identifier_test_pred_target_df, index=False)
-        project_info_dict = {"training_size": [self.train_size], "testing_size": [self.test_size], 'training_time':self.single_mode_time,
+        project_info_dict = {"training_size": [self.train_size], "testing_size": [self.test_size],
+                             'training_time': self.single_mode_time,
                              str(self.number_of_folds) + " fold_validation_time": [self.cross_validation_time],
                              "testing_time": [self.test_time]}
         identifier_project_info = f"{self.project_info_dir}{self.identifier}_project_info.csv"
