@@ -13,7 +13,7 @@ Among the ML models:
 3. Navigate to 'swifty' and run `sudo chmod -R 777 logs` 📑
 
 
-## Setting up the Environment - Apple Silicon 🛠️
+## Setting up the Environment - Apple Silicon 🍎
 
 1. Ensure Python 3.8 is installed 🐍
 2. Create a virtual environment and execute `pip -r apple-silcon-requirements.txt` 📦
