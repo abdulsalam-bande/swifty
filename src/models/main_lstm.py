@@ -13,6 +13,7 @@ test_predictions_dir = '../../results/test_predictions/'
 project_info_dir = '../../results/project_info/'
 serialized_models_path = '../../results/serialized_models/'
 shap_analyses_dir = '../../results/shap_analyses/'
+tsne_analyses_dir = '../../results/tsne_analyses/'
 dataset_dir = "../../datasets/"
 os.makedirs(training_metrics_dir, exist_ok=True)
 os.makedirs(testing_metrics_dir, exist_ok=True)
@@ -20,6 +21,7 @@ os.makedirs(test_predictions_dir, exist_ok=True)
 os.makedirs(project_info_dir, exist_ok=True)
 os.makedirs(serialized_models_path, exist_ok=True)
 os.makedirs(shap_analyses_dir, exist_ok=True)
+os.makedirs(tsne_analyses_dir, exist_ok=True)
 
 
 def str2bool(v):
@@ -53,10 +55,12 @@ def train_models(args, target, descriptor_data, size):
     number_of_folds = 5
     identifier = f"lstm_{target}_{get_descriptor_name(descriptor_data[1])}_{size}"
     logger.info(f"Identifier {identifier}")
+    identifier_data = f"{tsne_analyses_dir}{identifier}_data.csv"
     data_csv = f"{dataset_dir}{target}.csv"
 
     path_to_csv_file = f"../../datasets/{target}.csv"
     data_all = pd.read_csv(path_to_csv_file).dropna()
+    data_all.to_csv(identifier_data, index=False)
 
     train_size = size
     val_size = size * number_of_folds if args.cross_validate else 0
@@ -66,7 +70,7 @@ def train_models(args, target, descriptor_data, size):
         training_metrics_dir, testing_metrics_dir, test_predictions_dir,
         project_info_dir, data_all, train_size, test_size, val_size, identifier,
         number_of_folds, descriptor_data[1], descriptor_data[0], serialized_models_path, args.cross_validate,
-        shap_analyses_dir, data_csv=data_csv)
+        shap_analyses_dir, tsne_analyses_dir, data_csv=data_csv)
 
     model.split_data(cross_validate=args.cross_validate)
     model.train()

@@ -27,11 +27,16 @@ def test_model(test_dataloader, net):
     with torch.no_grad():
         for i, data in enumerate(test_dataloader):
             features, _ = data
-            features = features.squeeze()
+            if features.shape[0] == 1:
+                features = features.squeeze(-1)
+            else:
+                features = features.squeeze()
             features = features.unsqueeze(0)
             outputs = net(features)
-            smiles_prediction.extend(outputs.squeeze().tolist())
-            del features
+            if outputs.squeeze().dim() == 0:
+                smiles_prediction.append(outputs.squeeze().item())
+            else:
+                smiles_prediction.extend(outputs.squeeze().tolist())
     return smiles_prediction
 
 

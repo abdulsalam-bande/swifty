@@ -30,7 +30,7 @@ logger = swift_dock_logger()
 class SwiftDock:
     def __init__(self, training_metrics_dir, testing_metrics_dir, test_predictions_dir, project_info_dir, target_path,
                  train_size, test_size, val_size, identifier, number_of_folds, descriptor, feature_dim,
-                 serialized_models_path, cross_validate, shap_analyses_dir, data_csv):
+                 serialized_models_path, cross_validate, shap_analyses_dir,tsne_analyses_dir, data_csv):
         self.target_path = target_path
         self.training_metrics_dir = training_metrics_dir
         self.testing_metrics_dir = testing_metrics_dir
@@ -59,6 +59,7 @@ class SwiftDock:
         self.model_for_shap_analyses = None
         self.data_csv = data_csv
         self.scaler = StandardScaler()
+        self.tsne_metrics_dir = tsne_analyses_dir
 
     def split_data(self, cross_validate):
         if cross_validate:
@@ -71,6 +72,8 @@ class SwiftDock:
     def train(self):
         logger.info('Starting training...')
         identifier_model_path = f"{self.serialized_models_path}{self.identifier}_model.pt"
+        train_data_identifier = f"{self.tsne_metrics_dir}{self.identifier}_train_data.csv"
+        self.train_data.to_csv(train_data_identifier, index=False)
         smiles_data_train = DataGenerator(self.train_data, descriptor=self.descriptor)  # train
         train_dataloader = DataLoader(smiles_data_train, batch_size=32, shuffle=True, num_workers=8)
         criterion = nn.MSELoss()
@@ -165,11 +168,15 @@ class SwiftDock:
         all_models_predictions.append(test_predictions)
         self.test_time = (time.time() - start_time_test) / 60
         smiles_target = self.test_data['docking_score'].tolist()
+        smiles_data = self.test_data['smile'].tolist()
         metrics_dict_test = create_test_metrics(all_models_predictions, smiles_target, 1)
         predictions_and_target_df = create_fold_predictions_and_target_df(all_models_predictions, smiles_target,
                                                                           1, self.test_size)
+        predictions_and_target_df['smile'] = smiles_data
         self.test_metrics = metrics_dict_test
         self.test_predictions_and_target_df = predictions_and_target_df
+        identifier_test_pred_target_df = f"{self.tsne_metrics_dir}{self.identifier}_test_predictions.csv"
+        self.test_predictions_and_target_df.to_csv(identifier_test_pred_target_df, index=False)
 
     def shap_analyses(self):
         logger.info('Starting Shap Analyses...')
