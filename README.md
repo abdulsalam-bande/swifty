@@ -24,7 +24,7 @@ Among the ML models:
 ### Build & Validate 🛠️
 
 1. Add your target to the 'dataset' folder. Follow the format from `sample_input.csv`.
-2. Example: Navigate to `src/models` and run:
+2. Example: Navigate to `src/models` and run. Note: all possible descriptors are mac(MACCS), onehot(one hot encoding), and morgan_onehot_mac(CircularFingerprint+ One Hot Encoding + MACCS):
 ```bash
 python main_lstm.py --input <YOUR_INPUT_FILE> --descriptors <DESCRIPTOR> --training_sizes <TRAINING_SIZE> --cross_validation <CROSS_VALIDATION> 
 ```
