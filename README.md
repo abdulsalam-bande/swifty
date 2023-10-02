@@ -79,6 +79,12 @@ python create_fingerprint_data.py --input sample_input --descriptors mac
 ```bash
 python create_fingerprint_data.py --input <YOUR_INPUT_FILE> --descriptors <DESCRIPTOR>
 ```
+### More examples For creating the datasets
+### Crate dataset for training using Multiple Descriptors
+```bash
+python create_fingerprint_data.py --input sample_input --descriptors mac morgan_onehot_mac
+```
+
 3. Run this to train
 ```bash
 python main_ml.py --input sample_input --descriptors mac --training_sizes 50 --regressor sgreg
