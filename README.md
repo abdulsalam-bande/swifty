@@ -71,11 +71,11 @@ python lstm_inference.py --input_file molecules_for_prediction.csv --output_dir 
 ## Training Using other models (from scikit-learn) 🌳
 1. Add your target to the 'dataset' folder. It should match the format of sample_input.csv
 2. Run this command to prepare the dataset
-Example
+#### Example
 ```bash
 python create_fingerprint_data.py --input sample_input --descriptors mac
 ```
-Command Format
+#### Command Format
 ```bash
 python create_fingerprint_data.py --input <YOUR_INPUT_FILE> --descriptors <DESCRIPTOR>
 ```
