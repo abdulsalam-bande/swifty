@@ -25,11 +25,11 @@ Among the ML models:
 
 1. Add your target to the 'dataset' folder. Follow the format in `sample_input.csv`.
 2. Example: Lets say you want to train the lstm model for sample_input for mac descriptor and a training set size of 50 without cross validation. First,  Navigate to `src/models` and run the below command. Note: All possible descriptors are mac, onehot, and morgan_onehot_mac:
-Command
+#### Command
 ```bash
 python main_lstm.py --input sample_input --descriptors mac --training_sizes 50 --cross_validation False 
 ```
-Command Format
+#### Command Format
 ```bash
 python main_lstm.py --input <YOUR_INPUT_FILE> --descriptors <DESCRIPTOR> --training_sizes <TRAINING_SIZE> --cross_validation <CROSS_VALIDATION> 
 ```
