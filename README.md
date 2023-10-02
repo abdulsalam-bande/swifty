@@ -23,14 +23,15 @@ Among the ML models:
 
 ### Build & Validate 🛠️
 
-1. Add your target to the 'dataset' folder. Follow the format from `sample_input.csv`.
-2. Example: Navigate to `src/models` and run. Note: all possible descriptors are mac(MACCS), onehot(one hot encoding), and morgan_onehot_mac(CircularFingerprint+ One Hot Encoding + MACCS):
-```bash
-python main_lstm.py --input <YOUR_INPUT_FILE> --descriptors <DESCRIPTOR> --training_sizes <TRAINING_SIZE> --cross_validation <CROSS_VALIDATION> 
-```
-Example
+1. Add your target to the 'dataset' folder. Follow the format in `sample_input.csv`.
+2. Example: Lets say you want to train the lstm model for sample_input for mac descriptor and a training set size of 50 without cross validation. First,  Navigate to `src/models` and run the below command. Note: All possible descriptors are mac, onehot, and morgan_onehot_mac:
+Command
 ```bash
 python main_lstm.py --input sample_input --descriptors mac --training_sizes 50 --cross_validation False 
+```
+Command Format
+```bash
+python main_lstm.py --input <YOUR_INPUT_FILE> --descriptors <DESCRIPTOR> --training_sizes <TRAINING_SIZE> --cross_validation <CROSS_VALIDATION> 
 ```
 
 This will produce a result directory with 5 categories. Each file follows the format: lstm_target_descriptor_training_size.
@@ -39,6 +40,22 @@ This will produce a result directory with 5 categories. Each file follows the fo
 - **test_predictions**: Each docking score and corresponding model prediction.
 - **testing_metrics**: Metrics such as R-squared, mean absolute error from testing.
 - **validation_metrics**: Metrics from 5-fold cross-validation (only if `--cross_validation True`).
+
+### More examples 
+1. Training Using Multiple Descriptors
+```bash
+python main_lstm.py --input sample_input --descriptors mac morgan_onehot_mac --training_sizes 50 --cross_validation False 
+```
+
+2. Training Using Multiple Descriptors and Multiple Training set sizes
+```bash
+python main_lstm.py --input sample_input --descriptors mac morgan_onehot_mac --training_sizes 50 100 --cross_validation False 
+```
+
+3. Training Using Multiple Descriptors, Multiple Training set sizes and Multiple Targets
+```bash
+python main_lstm.py --input sample_input sample_input_2 --descriptors mac morgan_onehot_mac --training_sizes 50 100 --cross_validation False 
+```
 
 ## Making Predictions with LSTM 🎯
 Run
@@ -54,21 +71,38 @@ python lstm_inference.py --input_file molecules_for_prediction.csv --output_dir 
 ## Training Using other models (from scikit-learn) 🌳
 1. Add your target to the 'dataset' folder. It should match the format of sample_input.csv
 2. Run this command to prepare the dataset
-```bash
-python create_fingerprint_data.py --input <YOUR_INPUT_FILE> --descriptors <DESCRIPTOR>
-```
 Example
 ```bash
 python create_fingerprint_data.py --input sample_input --descriptors mac
 ```
-
+Command Format
+```bash
+python create_fingerprint_data.py --input <YOUR_INPUT_FILE> --descriptors <DESCRIPTOR>
+```
 3. Run this to train
+```bash
+python main_ml.py --input sample_input --descriptors mac --training_sizes 50 --regressor sgreg
+```
+Command Format
 ```bash
 python main_ml.py --input <YOUR_INPUT_FILE> --descriptors <DESCRIPTOR> --training_sizes  <TRAINING_SIZE> --regressor  <REGRESSOR>
 ```
-Example
+Note: All possible descriptors are mac, morgan_onehot_mac and onehot. All possible regressors are  sgreg, xgboost and decision_tree
+
+### More examples 
+1. Training Using Multiple Descriptors
 ```bash
-python main_ml.py --input sample_input --descriptors mac --training_sizes 50 --regressor sgreg
+python main_ml.py --input sample_input --descriptors mac  morgan_onehot_mac --training_sizes 50 --regressor sgreg
+```
+
+2. Training Using Multiple Descriptors and Multiple Training set sizes
+```bash
+python main_ml.py --input sample_input --descriptors mac morgan_onehot_mac --training_sizes 50 100 --regressor sgreg
+```
+
+2. Training Using Multiple Descriptors, Multiple Training set sizes and Multiple  Models
+```bash
+python main_ml.py --input sample_input --descriptors mac morgan_onehot_mac --training_sizes 50 100 --regressor sgreg xgboost
 ```
 
 This will give you a result directory with similar categories and file formats as mentioned in the LSTM section.
