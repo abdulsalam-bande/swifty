@@ -28,10 +28,9 @@ logger = swift_dock_logger()
 
 
 class SwiftDock:
-    def __init__(self, training_metrics_dir, testing_metrics_dir, test_predictions_dir, project_info_dir, target_path,
+    def __init__(self, training_metrics_dir, testing_metrics_dir, test_predictions_dir, project_info_dir,
                  train_size, test_size, val_size, identifier, number_of_folds, descriptor, feature_dim,
-                 serialized_models_path, cross_validate, shap_analyses_dir,tsne_analyses_dir, data_csv):
-        self.target_path = target_path
+                 serialized_models_path, cross_validate, shap_analyses_dir,tsne_analyses_dir,train_data, test_data):
         self.training_metrics_dir = training_metrics_dir
         self.testing_metrics_dir = testing_metrics_dir
         self.test_predictions_dir = test_predictions_dir
@@ -43,8 +42,8 @@ class SwiftDock:
         self.feature_dim = feature_dim
         self.descriptor = descriptor
         self.serialized_models_path = serialized_models_path
-        self.train_data = None
-        self.test_data = None
+        self.train_data = train_data
+        self.test_data = test_data
         self.val_data = val_size
         self.cross_validation_metrics = None
         self.all_networks = None
@@ -57,7 +56,6 @@ class SwiftDock:
         self.cross_validate = cross_validate
         self.shap_analyses_dir = shap_analyses_dir
         self.model_for_shap_analyses = None
-        self.data_csv = data_csv
         self.scaler = StandardScaler()
         self.tsne_metrics_dir = tsne_analyses_dir
 
@@ -89,16 +87,17 @@ class SwiftDock:
                     'num_of_features': self.feature_dim}, identifier_model_path)
         self.single_model = model
 
-        sample_size = 50000
-        if len(pd.read_csv(self.data_csv)) > 4500000:
-            sample_size = 100000
-
-        shap_test_size = sample_size * 0.8
+        train_sample_size_for_shape = 7000
+        test_sample_size_for_shap = 50000
         shap_number_of_epochs = 9
         # shap model
-        data_df = pd.read_csv(self.data_csv).sample(sample_size)
-        self.train_for_shap_analyses, self.test_for_shap_analyses = train_test_split(data_df, test_size=shap_test_size,
-                                                                                     random_state=42)
+        self.train_for_shap_analyses = copy.deepcopy(self.train_data).sample(train_sample_size_for_shape)
+        self.test_for_shap_analyses = copy.deepcopy(self.test_data).sample(test_sample_size_for_shap)
+
+        # data_df = pd.read_csv(self.data_csv).sample(sample_size)
+        # self.train_for_shap_analyses, self.test_for_shap_analyses = train_test_split(data_df, test_size=shap_test_size,
+        #                                                                              random_state=42)
+
         train_smiles = [list(compute_descriptors(Chem.MolFromSmiles(smile)).values()) for smile in
                         self.train_for_shap_analyses['smile']]
         train_docking_scores = self.train_for_shap_analyses['docking_score'].tolist()
