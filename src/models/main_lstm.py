@@ -75,7 +75,7 @@ def train_models(args, target, descriptor_data, size):
         number_of_folds, descriptor_data[1], descriptor_data[0], serialized_models_path, args.cross_validate,
         shap_analyses_dir, tsne_analyses_dir, train_data = training_data, test_data=test_data)
 
-    # model.split_data(cross_validate=args.cross_validate)
+    model.split_data(cross_validate=args.cross_validate)
     model.train()
 
     if args.cross_validate:
