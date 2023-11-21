@@ -75,7 +75,7 @@ class SwiftDock:
         train_data_identifier = f"{self.tsne_metrics_dir}{self.identifier}_train_data.csv"
         self.train_data.to_csv(train_data_identifier, index=False)
         smiles_data_train = DataGenerator(self.train_data, descriptor=self.descriptor)  # train
-        train_dataloader = DataLoader(smiles_data_train, batch_size=32, shuffle=True, num_workers=8)
+        train_dataloader = DataLoader(smiles_data_train, batch_size=64, shuffle=True, num_workers=8)
         criterion = nn.MSELoss()
         net = AttentionNetwork(self.feature_dim)
         optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
@@ -89,12 +89,10 @@ class SwiftDock:
                     'num_of_features': self.feature_dim}, identifier_model_path)
         self.single_model = model
 
-        sample_size = 50000
-        if len(pd.read_csv(self.data_csv)) > 4500000:
-            sample_size = 100000
 
-        shap_test_size = sample_size * 0.8
-        shap_number_of_epochs = 9
+        sample_size = 80000
+        shap_test_size = int(sample_size * 0.8)
+        shap_number_of_epochs = 7
         # shap model
         data_df = pd.read_csv(self.data_csv).sample(sample_size)
         self.train_for_shap_analyses, self.test_for_shap_analyses = train_test_split(data_df, test_size=shap_test_size,
@@ -107,7 +105,7 @@ class SwiftDock:
         shap_model_optimizer = torch.optim.Adam(self.model_for_shap_analyses.parameters(), lr=0.001)
 
         shap_data_gen = ShapAnalysesDataGenerator(normalized_descriptors, train_docking_scores)  # train
-        shap_dataloader = DataLoader(shap_data_gen, batch_size=32, shuffle=True, num_workers=6)
+        shap_dataloader = DataLoader(shap_data_gen, batch_size=64, shuffle=True, num_workers=8)
         self.model_for_shap_analyses, _ = train_model(shap_dataloader, self.model_for_shap_analyses, criterion,
                                                       shap_model_optimizer, shap_number_of_epochs)
 
@@ -126,9 +124,9 @@ class SwiftDock:
             temp_data.pop(fold)
             temp_data = pd.concat(temp_data)
             smiles_data_train = DataGenerator(df_split[fold], descriptor=self.descriptor)  # train
-            train_dataloader = DataLoader(smiles_data_train, batch_size=32, shuffle=True, num_workers=8)
+            train_dataloader = DataLoader(smiles_data_train, batch_size=64, shuffle=True, num_workers=8)
             fold_test_dataloader_class = DataGenerator(temp_data, descriptor=self.descriptor)
-            fold_test_dataloader = DataLoader(fold_test_dataloader_class, batch_size=32, shuffle=False, num_workers=8)
+            fold_test_dataloader = DataLoader(fold_test_dataloader_class, batch_size=64, shuffle=False, num_workers=8)
             criterion = nn.MSELoss()
             # training
             model, metrics_dict = train_model(train_dataloader, net, criterion,
@@ -162,16 +160,18 @@ class SwiftDock:
         logger.info('Starting testing...')
         all_models_predictions = []
         smiles_data_test = DataGenerator(self.test_data, descriptor=self.descriptor)
-        test_dataloader = DataLoader(smiles_data_test, batch_size=16, shuffle=False, num_workers=6)
+        test_dataloader = DataLoader(smiles_data_test, batch_size=64, shuffle=False, num_workers=8)
         start_time_test = time.time()
-        test_predictions = test_model(test_dataloader, self.single_model)
-        all_models_predictions.append(test_predictions)
+        for fold in range(self.number_of_folds):
+            logger.info(f"making fold {fold} predictions")
+            test_predictions = test_model(test_dataloader, self.all_networks[fold])
+            all_models_predictions.append(test_predictions)
         self.test_time = (time.time() - start_time_test) / 60
         smiles_target = self.test_data['docking_score'].tolist()
         smiles_data = self.test_data['smile'].tolist()
-        metrics_dict_test = create_test_metrics(all_models_predictions, smiles_target, 1)
+        metrics_dict_test = create_test_metrics(all_models_predictions, smiles_target, self.cross_validate)
         predictions_and_target_df = create_fold_predictions_and_target_df(all_models_predictions, smiles_target,
-                                                                          1, self.test_size)
+                                                                          self.cross_validate, self.test_size)
         predictions_and_target_df['smile'] = smiles_data
         self.test_metrics = metrics_dict_test
         self.test_predictions_and_target_df = predictions_and_target_df

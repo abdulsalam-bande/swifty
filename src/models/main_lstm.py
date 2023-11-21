@@ -52,7 +52,7 @@ def get_descriptor_name(func):
 
 
 def train_models(args, target, descriptor_data, size):
-    number_of_folds = 5
+    number_of_folds = args.cross_validate
     identifier = f"lstm_{target}_{get_descriptor_name(descriptor_data[1])}_{size}"
     logger.info(f"Identifier {identifier}")
     identifier_data = f"{tsne_analyses_dir}{identifier}_data.csv"
@@ -74,7 +74,6 @@ def train_models(args, target, descriptor_data, size):
 
     model.split_data(cross_validate=args.cross_validate)
     model.train()
-    model.shap_analyses()
 
     if args.cross_validate:
         model.diagnose()
@@ -88,7 +87,7 @@ if __name__ == '__main__':
     parser.add_argument("--input", type=str, help="specify the target protein to", nargs='+')
     parser.add_argument("--descriptors", type=str, help="specify the training descriptor", nargs='+')
     parser.add_argument("--training_sizes", type=int, help="Training and cross validation size", nargs='+')
-    parser.add_argument("--cross_validate", type=str2bool, help="If to use 5 cross validation")
+    parser.add_argument("--cross_validate", type=int, help="If to use 5 cross validation")
     args = parser.parse_args()
 
     for target in args.input:

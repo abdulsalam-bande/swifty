@@ -102,17 +102,25 @@ def get_data_splits(data, training_count, testing_count, validation_count):
     y = data['docking_score']
     total_data = data.shape[0]
     assert training_count + testing_count + validation_count == total_data, "The counts must sum up to the total number of data points"
+
+    # Splitting the data into test and temp (temp contains both training and validation data)
     x_temp, x_test, y_temp, y_test = train_test_split(x, y, test_size=testing_count, random_state=42)
-    # Adjust training size to account for initial split
-    adjusted_train_count = training_count / (1 - (testing_count / total_data))
-    x_train, x_val, y_train, y_val = train_test_split(x_temp, y_temp, train_size=int(adjusted_train_count),
-                                                      random_state=42)
+
+    # Remaining data for training and validation
+    remaining_data = total_data - testing_count
+
+    # Calculate proportions for training and validation sets
+    train_proportion = training_count / remaining_data
+    val_proportion = validation_count / remaining_data
+
+    # Split the temp data into train and validation
+    x_train, x_val, y_train, y_val = train_test_split(x_temp, y_temp, train_size=train_proportion, random_state=42)
 
     train = pd.concat([x_train, y_train], axis=1)
     test = pd.concat([x_test, y_test], axis=1)
     validation = pd.concat([x_val, y_val], axis=1)
-    return train, test, validation
 
+    return train, test, validation
 
 def save_dict(history, identifier):
     result_df = pd.DataFrame.from_dict(history)
