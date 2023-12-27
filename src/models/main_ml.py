@@ -1,9 +1,10 @@
-import numpy as np
 import argparse
 import os
+
+import numpy as np
 from sklearn.linear_model import SGDRegressor
-from xgboost import XGBRegressor
 from sklearn.tree import DecisionTreeRegressor
+from xgboost import XGBRegressor
 
 from ml_models import OtherModels
 

@@ -12,7 +12,6 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem, MACCSkeys
 from rdkit.Chem import Descriptors
 from sklearn.manifold import TSNE
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
 

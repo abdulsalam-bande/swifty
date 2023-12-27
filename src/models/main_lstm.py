@@ -1,8 +1,10 @@
-from smiles_featurizers import mac_keys_fingerprints, one_hot_encode, morgan_fingerprints_mac_and_one_hot
-import pandas as pd
 import argparse
 import os
+
+import pandas as pd
+
 from lstm import SwiftDock
+from smiles_featurizers import mac_keys_fingerprints, one_hot_encode, morgan_fingerprints_mac_and_one_hot
 from swift_dock_logger import swift_dock_logger
 
 logger = swift_dock_logger()
