@@ -52,7 +52,7 @@ def create_features(targets, info):
             start_time_test = time.time()
             init = 0
             batch_size = 128
-            train_dataloader = DataLoader(smiles_data_train, batch_size=batch_size, shuffle=True, num_workers=8)
+            train_dataloader = DataLoader(smiles_data_train, batch_size=batch_size, shuffle=True, num_workers=128)
             for i, data in enumerate(tqdm(train_dataloader)):
                 numpy_data = data.numpy()
                 data_set[init:init + numpy_data.shape[0], :] = numpy_data

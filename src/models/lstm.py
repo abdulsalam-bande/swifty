@@ -12,6 +12,7 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem, MACCSkeys
 from rdkit.Chem import Descriptors
 from sklearn.manifold import TSNE
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
 
@@ -85,7 +86,7 @@ class SwiftDock:
         train_data_identifier = f"{self.tsne_metrics_dir}{self.identifier}_train_data.csv"
         self.train_data.to_csv(train_data_identifier, index=False)
         smiles_data_train = DataGenerator(self.train_data, descriptor=self.descriptor)  # train
-        train_dataloader = DataLoader(smiles_data_train, batch_size=64, shuffle=True, num_workers=8)
+        train_dataloader = DataLoader(smiles_data_train, batch_size=64, shuffle=True, num_workers=128)
         criterion = nn.MSELoss()
         net = AttentionNetwork(self.feature_dim)
         optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
@@ -100,24 +101,24 @@ class SwiftDock:
         self.single_model = model
 
 
-        # sample_size = 80000
-        # shap_test_size = int(sample_size * 0.8)
-        # shap_number_of_epochs = 7
-        # # shap model
-        # data_df = pd.read_csv(self.data_csv).sample(sample_size)
-        # self.train_for_shap_analyses, self.test_for_shap_analyses = train_test_split(data_df, test_size=shap_test_size,
-        #                                                                              random_state=42)
-        # train_smiles = [list(compute_descriptors(Chem.MolFromSmiles(smile)).values()) for smile in
-        #                 self.train_for_shap_analyses['smile']]
-        # train_docking_scores = self.train_for_shap_analyses['docking_score'].tolist()
-        # normalized_descriptors = self.scaler.fit_transform(train_smiles)
-        # self.model_for_shap_analyses = AttentionNetwork(16)
-        # shap_model_optimizer = torch.optim.Adam(self.model_for_shap_analyses.parameters(), lr=0.001)
-        #
-        # shap_data_gen = ShapAnalysesDataGenerator(normalized_descriptors, train_docking_scores)  # train
-        # shap_dataloader = DataLoader(shap_data_gen, batch_size=64, shuffle=True, num_workers=8)
-        # self.model_for_shap_analyses, _ = train_model(shap_dataloader, self.model_for_shap_analyses, criterion,
-        #                                               shap_model_optimizer, shap_number_of_epochs)
+        sample_size = 80000
+        shap_test_size = int(sample_size * 0.8)
+        shap_number_of_epochs = 7
+        # shap model
+        data_df = pd.read_csv(self.data_csv).sample(sample_size)
+        self.train_for_shap_analyses, self.test_for_shap_analyses = train_test_split(data_df, test_size=shap_test_size,
+                                                                                     random_state=42)
+        train_smiles = [list(compute_descriptors(Chem.MolFromSmiles(smile)).values()) for smile in
+                        self.train_for_shap_analyses['smile']]
+        train_docking_scores = self.train_for_shap_analyses['docking_score'].tolist()
+        normalized_descriptors = self.scaler.fit_transform(train_smiles)
+        self.model_for_shap_analyses = AttentionNetwork(16)
+        shap_model_optimizer = torch.optim.Adam(self.model_for_shap_analyses.parameters(), lr=0.001)
+
+        shap_data_gen = ShapAnalysesDataGenerator(normalized_descriptors, train_docking_scores)  # train
+        shap_dataloader = DataLoader(shap_data_gen, batch_size=64, shuffle=True, num_workers=128)
+        self.model_for_shap_analyses, _ = train_model(shap_dataloader, self.model_for_shap_analyses, criterion,
+                                                      shap_model_optimizer, shap_number_of_epochs)
 
     def diagnose(self):
         logger.info('Starting diagnosis...')
@@ -134,9 +135,9 @@ class SwiftDock:
             temp_data.pop(fold)
             temp_data = pd.concat(temp_data)
             smiles_data_train = DataGenerator(df_split[fold], descriptor=self.descriptor)  # train
-            train_dataloader = DataLoader(smiles_data_train, batch_size=64, shuffle=True, num_workers=8)
+            train_dataloader = DataLoader(smiles_data_train, batch_size=64, shuffle=True, num_workers=128)
             fold_test_dataloader_class = DataGenerator(temp_data, descriptor=self.descriptor)
-            fold_test_dataloader = DataLoader(fold_test_dataloader_class, batch_size=64, shuffle=False, num_workers=8)
+            fold_test_dataloader = DataLoader(fold_test_dataloader_class, batch_size=64, shuffle=False, num_workers=128)
             criterion = nn.MSELoss()
             # training
             model, metrics_dict = train_model(train_dataloader, net, criterion,
@@ -170,7 +171,7 @@ class SwiftDock:
         logger.info('Starting testing...')
         all_models_predictions = []
         smiles_data_test = DataGenerator(self.test_data, descriptor=self.descriptor)
-        test_dataloader = DataLoader(smiles_data_test, batch_size=64, shuffle=False, num_workers=8)
+        test_dataloader = DataLoader(smiles_data_test, batch_size=64, shuffle=False, num_workers=128)
         start_time_test = time.time()
         for fold in range(self.number_of_folds):
             logger.info(f"making fold {fold} predictions")
@@ -358,7 +359,7 @@ class SwiftDock:
         model.eval()
         smiles_data_train = InferenceDataGenerator(pd.read_csv(input_path), descriptor=descriptor)  # train
         torch.set_num_threads(6)
-        inference_dataloader = DataLoader(smiles_data_train, batch_size=32, shuffle=False, num_workers=6)
+        inference_dataloader = DataLoader(smiles_data_train, batch_size=32, shuffle=False, num_workers=8)
         predictions = inference(inference_dataloader, model)
         results_dict = {"smile": smiles, "docking_score": predictions}
         identifier_project_info = f"{output_path}/results.csv"
