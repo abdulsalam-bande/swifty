@@ -16,7 +16,6 @@ from torch.utils.data import Dataset
 
 from smiles_featurizers import one_hot_encode, mac_keys_fingerprints
 
-
 mpl.rcParams['figure.dpi'] = 300
 
 warnings.filterwarnings("ignore")
@@ -121,6 +120,24 @@ def get_data_splits(data, training_count, testing_count, validation_count):
     validation = pd.concat([x_val, y_val], axis=1)
 
     return train, test, validation
+
+
+def get_data_splits_clustering(data, training_count, testing_count, validation_count):
+    sorted_data = data.sort_values('cluster')
+    total_data = sorted_data.shape[0]
+    assert training_count + testing_count + validation_count == total_data, "The counts must sum up to the total number of data points"
+
+    # Indices for splitting data into train, test, and validation
+    train_end_idx = training_count
+    test_end_idx = train_end_idx + validation_count
+
+    # Splitting the data
+    train = sorted_data.iloc[:train_end_idx].reset_index(drop=True)
+    validation = sorted_data.iloc[train_end_idx:test_end_idx].reset_index(drop=True)
+    test = sorted_data.iloc[test_end_idx:].reset_index(drop=True)
+
+    return train, test, validation
+
 
 def save_dict(history, identifier):
     result_df = pd.DataFrame.from_dict(history)

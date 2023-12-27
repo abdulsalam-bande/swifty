@@ -97,12 +97,9 @@ class OtherModels:
             pickle.dump((rg, descriptor_dict), file)
         logger.info(f"Training is Done! {self.identifier}")
 
-        sample_size = 50000
-        if len(pd.read_csv(self.data_csv)) > 4500000:
-            sample_size = 100000
-
-        shap_test_size = sample_size * 0.8
-        data_df = pd.read_csv(self.data_csv).sample(sample_size)
+        sample_size = 80000
+        shap_test_size = int(sample_size * 0.8)
+        data_df = pd.read_csv(self.data_csv).dropna().sample(sample_size)
         self.train_for_shap_analyses, self.test_for_shap_analyses = train_test_split(data_df, test_size=shap_test_size,
                                                                                      random_state=42)
         train_smiles = [list(compute_descriptors(Chem.MolFromSmiles(smile)).values()) for smile in

@@ -22,17 +22,19 @@ from smiles_featurizers import compute_descriptors
 from swift_dock_logger import swift_dock_logger
 from trainer import train_model
 from utils import get_training_and_test_data, test_model, calculate_metrics, create_test_metrics, \
-    create_fold_predictions_and_target_df, save_dict, get_data_splits, inference
+    create_fold_predictions_and_target_df, save_dict, get_data_splits, inference,get_data_splits_clustering
 
 logger = swift_dock_logger()
 
 
 class SwiftDock:
-    def __init__(self, training_metrics_dir, testing_metrics_dir, test_predictions_dir, project_info_dir, target_path,
+    def __init__(self, training_and_testing_data, training_metrics_dir, testing_metrics_dir, test_predictions_dir,
+                 project_info_dir, target_path,
                  train_size, test_size, val_size, identifier, number_of_folds, descriptor, feature_dim,
-                 serialized_models_path, cross_validate, shap_analyses_dir,tsne_analyses_dir, data_csv):
+                 serialized_models_path, cross_validate, shap_analyses_dir, tsne_analyses_dir, data_csv):
         self.target_path = target_path
         self.training_metrics_dir = training_metrics_dir
+        self.training_and_testing_data = training_and_testing_data
         self.testing_metrics_dir = testing_metrics_dir
         self.test_predictions_dir = test_predictions_dir
         self.project_info_dir = project_info_dir
@@ -62,12 +64,21 @@ class SwiftDock:
         self.tsne_metrics_dir = tsne_analyses_dir
 
     def split_data(self, cross_validate):
+        train_name = f"{self.training_and_testing_data}{self.identifier}_train_data.csv"
+        val_name = f"{self.training_and_testing_data}{self.identifier}_val_data.csv"
+        test_name = f"{self.training_and_testing_data}{self.identifier}_test_data.csv"
+
         if cross_validate:
-            self.train_data, self.test_data, self.val_data = get_data_splits(self.target_path, self.train_size,
-                                                                             self.test_size, self.val_data)
+            self.train_data, self.test_data, self.val_data = get_data_splits_clustering(self.target_path,
+                                                                                        self.train_size,
+                                                                                        self.test_size, self.val_data)
+            self.val_data.to_csv(val_name, index=False)
         else:
             self.train_data, self.test_data = get_training_and_test_data(self.target_path, self.train_size,
                                                                          self.test_size)
+
+        self.train_data.to_csv(train_name, index=False)
+        self.test_data.to_csv(test_name, index=False)
 
     def train(self):
         logger.info('Starting training...')
@@ -90,24 +101,24 @@ class SwiftDock:
         self.single_model = model
 
 
-        sample_size = 80000
-        shap_test_size = int(sample_size * 0.8)
-        shap_number_of_epochs = 7
-        # shap model
-        data_df = pd.read_csv(self.data_csv).sample(sample_size)
-        self.train_for_shap_analyses, self.test_for_shap_analyses = train_test_split(data_df, test_size=shap_test_size,
-                                                                                     random_state=42)
-        train_smiles = [list(compute_descriptors(Chem.MolFromSmiles(smile)).values()) for smile in
-                        self.train_for_shap_analyses['smile']]
-        train_docking_scores = self.train_for_shap_analyses['docking_score'].tolist()
-        normalized_descriptors = self.scaler.fit_transform(train_smiles)
-        self.model_for_shap_analyses = AttentionNetwork(16)
-        shap_model_optimizer = torch.optim.Adam(self.model_for_shap_analyses.parameters(), lr=0.001)
-
-        shap_data_gen = ShapAnalysesDataGenerator(normalized_descriptors, train_docking_scores)  # train
-        shap_dataloader = DataLoader(shap_data_gen, batch_size=64, shuffle=True, num_workers=8)
-        self.model_for_shap_analyses, _ = train_model(shap_dataloader, self.model_for_shap_analyses, criterion,
-                                                      shap_model_optimizer, shap_number_of_epochs)
+        # sample_size = 80000
+        # shap_test_size = int(sample_size * 0.8)
+        # shap_number_of_epochs = 7
+        # # shap model
+        # data_df = pd.read_csv(self.data_csv).sample(sample_size)
+        # self.train_for_shap_analyses, self.test_for_shap_analyses = train_test_split(data_df, test_size=shap_test_size,
+        #                                                                              random_state=42)
+        # train_smiles = [list(compute_descriptors(Chem.MolFromSmiles(smile)).values()) for smile in
+        #                 self.train_for_shap_analyses['smile']]
+        # train_docking_scores = self.train_for_shap_analyses['docking_score'].tolist()
+        # normalized_descriptors = self.scaler.fit_transform(train_smiles)
+        # self.model_for_shap_analyses = AttentionNetwork(16)
+        # shap_model_optimizer = torch.optim.Adam(self.model_for_shap_analyses.parameters(), lr=0.001)
+        #
+        # shap_data_gen = ShapAnalysesDataGenerator(normalized_descriptors, train_docking_scores)  # train
+        # shap_dataloader = DataLoader(shap_data_gen, batch_size=64, shuffle=True, num_workers=8)
+        # self.model_for_shap_analyses, _ = train_model(shap_dataloader, self.model_for_shap_analyses, criterion,
+        #                                               shap_model_optimizer, shap_number_of_epochs)
 
     def diagnose(self):
         logger.info('Starting diagnosis...')
