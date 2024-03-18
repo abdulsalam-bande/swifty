@@ -74,7 +74,8 @@ def train_models(args, target, descriptor_data, size):
         training_and_testing_data, training_metrics_dir, testing_metrics_dir, test_predictions_dir,
         project_info_dir, data_all, train_size, test_size, val_size, identifier,
         number_of_folds, descriptor_data[1], descriptor_data[0], serialized_models_path, args.cross_validate,
-        shap_analyses_dir, tsne_analyses_dir, data_csv=data_csv)
+        shap_analyses_dir, tsne_analyses_dir, data_csv=data_csv, batch_size=args.batch_size,
+        number_of_workers=args.number_of_workers)
 
     model.split_data(cross_validate=args.cross_validate)
     model.train()
@@ -93,6 +94,8 @@ if __name__ == '__main__':
     parser.add_argument("--descriptors", type=str, help="specify the training descriptor", nargs='+')
     parser.add_argument("--training_sizes", type=int, help="Training and cross validation size", nargs='+')
     parser.add_argument("--cross_validate", type=int, help="If to use  cross validation")
+    parser.add_argument("--batch_size", type=int, help="Batch size")
+    parser.add_argument("--number_of_workers", type=int, help="Number of workers")
     args = parser.parse_args()
 
     for target in args.input:

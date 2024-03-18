@@ -1,5 +1,7 @@
 import copy
+import os
 import time
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -22,16 +24,17 @@ from smiles_featurizers import compute_descriptors
 from swift_dock_logger import swift_dock_logger
 from trainer import train_model
 from utils import get_training_and_test_data, test_model, calculate_metrics, create_test_metrics, \
-    create_fold_predictions_and_target_df, save_dict, get_data_splits, inference,get_data_splits_clustering
+    create_fold_predictions_and_target_df, save_dict, inference, get_data_splits_clustering
 
 logger = swift_dock_logger()
-
+warnings.filterwarnings("ignore")
 
 class SwiftDock:
     def __init__(self, training_and_testing_data, training_metrics_dir, testing_metrics_dir, test_predictions_dir,
                  project_info_dir, target_path,
                  train_size, test_size, val_size, identifier, number_of_folds, descriptor, feature_dim,
-                 serialized_models_path, cross_validate, shap_analyses_dir, tsne_analyses_dir, data_csv):
+                 serialized_models_path, cross_validate, shap_analyses_dir, tsne_analyses_dir, data_csv, batch_size,
+                 number_of_workers):
         self.target_path = target_path
         self.training_metrics_dir = training_metrics_dir
         self.training_and_testing_data = training_and_testing_data
@@ -62,6 +65,8 @@ class SwiftDock:
         self.data_csv = data_csv
         self.scaler = StandardScaler()
         self.tsne_metrics_dir = tsne_analyses_dir
+        self.batch_size = batch_size
+        self.number_of_workers = number_of_workers
 
     def split_data(self, cross_validate):
         train_name = f"{self.training_and_testing_data}{self.identifier}_train_data.csv"
@@ -86,7 +91,8 @@ class SwiftDock:
         train_data_identifier = f"{self.tsne_metrics_dir}{self.identifier}_train_data.csv"
         self.train_data.to_csv(train_data_identifier, index=False)
         smiles_data_train = DataGenerator(self.train_data, descriptor=self.descriptor)  # train
-        train_dataloader = DataLoader(smiles_data_train, batch_size=64, shuffle=True, num_workers=128)
+        train_dataloader = DataLoader(smiles_data_train, batch_size=self.batch_size, shuffle=True,
+                                      num_workers=self.number_of_workers)
         criterion = nn.MSELoss()
         net = AttentionNetwork(self.feature_dim)
         optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
@@ -116,7 +122,8 @@ class SwiftDock:
         shap_model_optimizer = torch.optim.Adam(self.model_for_shap_analyses.parameters(), lr=0.001)
 
         shap_data_gen = ShapAnalysesDataGenerator(normalized_descriptors, train_docking_scores)  # train
-        shap_dataloader = DataLoader(shap_data_gen, batch_size=64, shuffle=True, num_workers=128)
+        shap_dataloader = DataLoader(shap_data_gen, batch_size=self.batch_size, shuffle=True,
+                                     num_workers=self.number_of_workers)
         self.model_for_shap_analyses, _ = train_model(shap_dataloader, self.model_for_shap_analyses, criterion,
                                                       shap_model_optimizer, shap_number_of_epochs)
 
@@ -135,9 +142,11 @@ class SwiftDock:
             temp_data.pop(fold)
             temp_data = pd.concat(temp_data)
             smiles_data_train = DataGenerator(df_split[fold], descriptor=self.descriptor)  # train
-            train_dataloader = DataLoader(smiles_data_train, batch_size=64, shuffle=True, num_workers=128)
+            train_dataloader = DataLoader(smiles_data_train, batch_size=self.batch_size, shuffle=True,
+                                          num_workers=self.number_of_workers)
             fold_test_dataloader_class = DataGenerator(temp_data, descriptor=self.descriptor)
-            fold_test_dataloader = DataLoader(fold_test_dataloader_class, batch_size=64, shuffle=False, num_workers=128)
+            fold_test_dataloader = DataLoader(fold_test_dataloader_class, batch_size=self.batch_size, shuffle=False,
+                                              num_workers=self.number_of_workers)
             criterion = nn.MSELoss()
             # training
             model, metrics_dict = train_model(train_dataloader, net, criterion,
@@ -171,7 +180,8 @@ class SwiftDock:
         logger.info('Starting testing...')
         all_models_predictions = []
         smiles_data_test = DataGenerator(self.test_data, descriptor=self.descriptor)
-        test_dataloader = DataLoader(smiles_data_test, batch_size=64, shuffle=False, num_workers=128)
+        test_dataloader = DataLoader(smiles_data_test, batch_size=self.batch_size, shuffle=False,
+                                     num_workers=self.number_of_workers)
         start_time_test = time.time()
         for fold in range(self.number_of_folds):
             logger.info(f"making fold {fold} predictions")
@@ -345,9 +355,16 @@ class SwiftDock:
         logger.info('Training and Testing information has been saved.')
 
     @staticmethod
-    def inference(input_path, output_path, model_path):
+    def inference(input_path, output_path, model_path, batch_size=32, num_workers=10,cluster_analyses=False):
         logger.info('Inference has started...')
-        smiles = pd.read_csv(input_path)['smile'].tolist()
+        data = pd.read_csv(input_path)
+        smiles = data['smile'].tolist()
+        docking_score = []
+        cluster = []
+        if 'docking_score' in data.columns:
+            docking_score = data['docking_score'].tolist()
+        if 'cluster' in data.columns:
+            cluster = data['cluster'].tolist()
         # Load the model
         checkpoint = torch.load(model_path)
         descriptor = checkpoint['descriptor']
@@ -359,9 +376,36 @@ class SwiftDock:
         model.eval()
         smiles_data_train = InferenceDataGenerator(pd.read_csv(input_path), descriptor=descriptor)  # train
         torch.set_num_threads(6)
-        inference_dataloader = DataLoader(smiles_data_train, batch_size=32, shuffle=False, num_workers=8)
+        inference_dataloader = DataLoader(smiles_data_train, batch_size=batch_size, shuffle=False, num_workers=num_workers)
         predictions = inference(inference_dataloader, model)
-        results_dict = {"smile": smiles, "docking_score": predictions}
-        identifier_project_info = f"{output_path}/results.csv"
-        save_dict(results_dict, identifier_project_info)
-        logger.info('Inference is finished')
+        if 'docking_score' in data.columns:
+            results_dict = {"smile": smiles, "predicted_docking_score": predictions, "docking_score": docking_score,
+                            'cluster': cluster}
+        else:
+            results_dict = {"smile": smiles, "predicted_docking_scores": predictions}
+        file_name = os.path.basename(input_path)
+        file_name_without_extension = os.path.splitext(file_name)[0]
+
+        # Construct the new output file path
+        new_output_file_path = os.path.join(output_path, f"{file_name_without_extension}_predictions.csv")
+        save_dict(results_dict, new_output_file_path)
+        if cluster_analyses:
+            cluster_errors = {}
+            for predicted, actual, cluster in zip(results_dict["predicted_docking_score"], results_dict["docking_score"],
+                                                  results_dict["cluster"]):
+                # Calculate the absolute error
+                error = abs(predicted - actual)
+
+                # Update the cluster_errors dictionary
+                if cluster not in cluster_errors:
+                    cluster_errors[cluster] = {'total_error': 0, 'count': 0}
+                cluster_errors[cluster]['total_error'] += error
+                cluster_errors[cluster]['count'] += 1
+
+            # Calculate the average MAE for each cluster
+            cluster_average_mae = {str(cluster): round(errors['total_error'] / errors['count'] ,4)for cluster, errors in
+                                   cluster_errors.items()}
+            cluster_output_file_path = os.path.join(output_path, f"{file_name_without_extension}_cluster_results.csv")
+            save_dict({key: [value] for key, value in cluster_average_mae.items()}, cluster_output_file_path)
+
+        logger.info('Inference is Done')
