@@ -34,7 +34,7 @@ class SwiftDock:
                  project_info_dir, target_path,
                  train_size, test_size, val_size, identifier, number_of_folds, descriptor, feature_dim,
                  serialized_models_path, cross_validate, shap_analyses_dir, tsne_analyses_dir, data_csv, batch_size,
-                 number_of_workers):
+                 number_of_workers, sequence):
         self.target_path = target_path
         self.training_metrics_dir = training_metrics_dir
         self.training_and_testing_data = training_and_testing_data
@@ -67,6 +67,7 @@ class SwiftDock:
         self.tsne_metrics_dir = tsne_analyses_dir
         self.batch_size = batch_size
         self.number_of_workers = number_of_workers
+        self.sequence = sequence
 
     def split_data(self, cross_validate):
         train_name = f"{self.training_and_testing_data}{self.identifier}_train_data.csv"
@@ -94,7 +95,7 @@ class SwiftDock:
         train_dataloader = DataLoader(smiles_data_train, batch_size=self.batch_size, shuffle=True,
                                       num_workers=self.number_of_workers)
         criterion = nn.MSELoss()
-        net = AttentionNetwork(self.feature_dim)
+        net = AttentionNetwork(self.feature_dim, self.sequence)
         optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
         number_of_epochs = 7
         start = time.time()
@@ -107,25 +108,25 @@ class SwiftDock:
         self.single_model = model
 
 
-        sample_size = 80000
-        shap_test_size = int(sample_size * 0.8)
-        shap_number_of_epochs = 7
-        # shap model
-        data_df = pd.read_csv(self.data_csv).sample(sample_size)
-        self.train_for_shap_analyses, self.test_for_shap_analyses = train_test_split(data_df, test_size=shap_test_size,
-                                                                                     random_state=42)
-        train_smiles = [list(compute_descriptors(Chem.MolFromSmiles(smile)).values()) for smile in
-                        self.train_for_shap_analyses['smile']]
-        train_docking_scores = self.train_for_shap_analyses['docking_score'].tolist()
-        normalized_descriptors = self.scaler.fit_transform(train_smiles)
-        self.model_for_shap_analyses = AttentionNetwork(16)
-        shap_model_optimizer = torch.optim.Adam(self.model_for_shap_analyses.parameters(), lr=0.001)
-
-        shap_data_gen = ShapAnalysesDataGenerator(normalized_descriptors, train_docking_scores)  # train
-        shap_dataloader = DataLoader(shap_data_gen, batch_size=self.batch_size, shuffle=True,
-                                     num_workers=self.number_of_workers)
-        self.model_for_shap_analyses, _ = train_model(shap_dataloader, self.model_for_shap_analyses, criterion,
-                                                      shap_model_optimizer, shap_number_of_epochs)
+        # sample_size = 80000
+        # shap_test_size = int(sample_size * 0.8)
+        # shap_number_of_epochs = 7
+        # # shap model
+        # data_df = pd.read_csv(self.data_csv).sample(sample_size)
+        # self.train_for_shap_analyses, self.test_for_shap_analyses = train_test_split(data_df, test_size=shap_test_size,
+        #                                                                              random_state=42)
+        # train_smiles = [list(compute_descriptors(Chem.MolFromSmiles(smile)).values()) for smile in
+        #                 self.train_for_shap_analyses['smile']]
+        # train_docking_scores = self.train_for_shap_analyses['docking_score'].tolist()
+        # normalized_descriptors = self.scaler.fit_transform(train_smiles)
+        # self.model_for_shap_analyses = AttentionNetwork(16, self.sequence)
+        # shap_model_optimizer = torch.optim.Adam(self.model_for_shap_analyses.parameters(), lr=0.001)
+        #
+        # shap_data_gen = ShapAnalysesDataGenerator(normalized_descriptors, train_docking_scores)  # train
+        # shap_dataloader = DataLoader(shap_data_gen, batch_size=self.batch_size, shuffle=True,
+        #                              num_workers=self.number_of_workers)
+        # self.model_for_shap_analyses, _ = train_model(shap_dataloader, self.model_for_shap_analyses, criterion,
+        #                                               shap_model_optimizer, shap_number_of_epochs)
 
     def diagnose(self):
         logger.info('Starting diagnosis...')
@@ -136,7 +137,7 @@ class SwiftDock:
         number_of_epochs = 7
         start_time_train_val = time.time()
         for fold in range(self.number_of_folds):
-            net = AttentionNetwork(self.feature_dim)
+            net = AttentionNetwork(self.feature_dim, self.sequence)
             optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
             temp_data = copy.deepcopy(df_split)
             temp_data.pop(fold)
@@ -369,7 +370,7 @@ class SwiftDock:
         checkpoint = torch.load(model_path)
         descriptor = checkpoint['descriptor']
         num_of_features = checkpoint['num_of_features']
-        model = AttentionNetwork(num_of_features)
+        model = AttentionNetwork(num_of_features) # TODO: Update this to use sequecnce
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])

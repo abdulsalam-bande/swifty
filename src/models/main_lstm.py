@@ -6,6 +6,7 @@ import pandas as pd
 from lstm import SwiftDock
 from smiles_featurizers import mac_keys_fingerprints, one_hot_encode, morgan_fingerprints_mac_and_one_hot
 from swift_dock_logger import swift_dock_logger
+from seq_dict import sequence_dict
 
 logger = swift_dock_logger()
 
@@ -55,6 +56,10 @@ def get_descriptor_name(func):
     return descriptors.get(func.__name__, None)
 
 
+def get_target_seq(target_name):
+    return sequence_dict.get(target_name)
+
+
 def train_models(args, target, descriptor_data, size):
     number_of_folds = args.cross_validate
     identifier = f"lstm_{target}_{get_descriptor_name(descriptor_data[1])}_{size}"
@@ -70,12 +75,14 @@ def train_models(args, target, descriptor_data, size):
     val_size = size * number_of_folds if args.cross_validate else 0
     test_size = len(data_all) - (train_size + val_size)
 
+    sequence = get_target_seq(target)
+
     model = SwiftDock(
         training_and_testing_data, training_metrics_dir, testing_metrics_dir, test_predictions_dir,
         project_info_dir, data_all, train_size, test_size, val_size, identifier,
         number_of_folds, descriptor_data[1], descriptor_data[0], serialized_models_path, args.cross_validate,
         shap_analyses_dir, tsne_analyses_dir, data_csv=data_csv, batch_size=args.batch_size,
-        number_of_workers=args.number_of_workers)
+        number_of_workers=args.number_of_workers, sequence=sequence)
 
     model.split_data(cross_validate=args.cross_validate)
     model.train()
