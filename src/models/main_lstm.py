@@ -10,14 +10,14 @@ from seq_dict import sequence_dict
 
 logger = swift_dock_logger()
 
-training_metrics_dir = '../../results/validation_metrics/'
-testing_metrics_dir = '../../results/testing_metrics/'
-test_predictions_dir = '../../results/test_predictions/'
-project_info_dir = '../../results/project_info/'
-serialized_models_path = '../../results/serialized_models/'
-shap_analyses_dir = '../../results/shap_analyses/'
-tsne_analyses_dir = '../../results/tsne_analyses/'
-training_and_testing_data = '../../results/training_testing_data/'
+training_metrics_dir = '../../results_seq/validation_metrics/'
+testing_metrics_dir = '../../results_seq/testing_metrics/'
+test_predictions_dir = '../../results_seq/test_predictions/'
+project_info_dir = '../../results_seq/project_info/'
+serialized_models_path = '../../results_seq/serialized_models/'
+shap_analyses_dir = '../../results_seq/shap_analyses/'
+tsne_analyses_dir = '../../results_seq/tsne_analyses/'
+training_and_testing_data = '../../results_seq/training_testing_data/'
 dataset_dir = "../../datasets/"
 os.makedirs(training_metrics_dir, exist_ok=True)
 os.makedirs(testing_metrics_dir, exist_ok=True)
