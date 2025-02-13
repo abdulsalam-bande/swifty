@@ -10,5 +10,8 @@ main.py
 summarize_graphs.py
 *.pt
 runner.txt
+gemma_pytorch
+weights_config.yml
 
 /src-uhem/
+/src/models/gemma_pytorch/

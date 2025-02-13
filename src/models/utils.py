@@ -16,6 +16,7 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 
 from smiles_featurizers import one_hot_encode, mac_keys_fingerprints
+from seq_dict import sequence_dict
 
 mpl.rcParams['figure.dpi'] = 300
 
@@ -264,3 +265,39 @@ def get_fingerprint(smiles_string):
     """Generate Morgan fingerprint for a given SMILES string."""
     molecule = Chem.MolFromSmiles(smiles_string)
     return AllChem.GetMorganFingerprintAsBitVect(molecule, 2)
+
+
+def prepare_llm_instruction(smile, smiles_properties, predicted_docking_score):
+    instruction = f"""
+    Given the SMILE representation "{smile}" and its predicted docking score of {predicted_docking_score}, 
+    alongside the following molecular properties: 
+    Molecular Weight: {smiles_properties['mol_weight']}, 
+    Number of Atoms: {smiles_properties['num_atoms']}, 
+    Number of Bonds: {smiles_properties['num_bonds']}, 
+    Number of Rotatable Bonds: {smiles_properties['num_rotatable_bonds']}, 
+    Number of Hydrogen Donors: {smiles_properties['num_h_donors']}, 
+    Number of Hydrogen Acceptors: {smiles_properties['num_h_acceptors']}, 
+    LogP: {smiles_properties['logp']}, 
+    Molar Refractivity: {smiles_properties['mr']}, 
+    Topological Polar Surface Area (TPSA): {smiles_properties['tpsa']}, 
+    Number of Rings: {smiles_properties['num_rings']}, 
+    Number of Aromatic Rings: {smiles_properties['num_aromatic_rings']}, 
+    Hall-Kier Alpha: {smiles_properties['hall_kier_alpha']}, 
+    Fraction Csp3: {smiles_properties['fraction_csp3']}, 
+    Number of Nitrogens: {smiles_properties['num_nitrogens']}, 
+    Number of Oxygens: {smiles_properties['num_oxygens']}, 
+    Number of Sulphurs: {smiles_properties['num_sulphurs']},
+
+    provide an explanation of how these specific properties may influence the docking score. 
+    Consider the significance of the SMILE representation in terms of structural features that could 
+    affect the molecule's interaction with a biological target, including aspects such as hydrophobic 
+    interactions indicated by LogP, molecular flexibility suggested by the number of rotatable bonds, 
+    and other relevant molecular features.
+    """
+
+    return instruction
+
+
+def get_target_seq(target_name):
+    default = "MEALIPVINKLQDVFNTVGADIIQLPQIVVVGTQSSGKSSVLESLVGRDLLPRGTGIVTRRPLILQLVHVSQEDKRKTTGEENGVEAEEWGKFLHTKNKLYTDFDEIRQEIENETERISGNNKGVSPEPIHLKIFSPNVVNLTLVDLPGMTKVPVGDQPKDIELQIRELILRFISNPNSIILAVTAANTDMATSEALKISREVDPDGRRTLAVITKLDLMDAGTDAMDVLMGRVIPVKLGIIGVVNRSQLDINNKKSVTDSIRDEYAFLQKKYPSLANRNGTKYLARTLNRLLMHHIRDCLPELKTRINVLAAQYQSLLNSYGEPVDGSGSGSGSKEAADMLKALQGASQIIAEIRETHLWLEHHHHHH"
+    return sequence_dict.get(target_name,default)

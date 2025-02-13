@@ -1,0 +1,3 @@
+VARIANT: '2b-it'
+MACHINE_TYPE: 'cpu'
+WEIGHTS_DIR: '/Users/abdulsalamyazid/PycharmProjects/gemma/weights'

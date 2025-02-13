@@ -8,3 +8,4 @@ pandas==2.2.0
 rdkit==2023.9.5
 seaborn==0.13.2
 transformers
+immutabledict

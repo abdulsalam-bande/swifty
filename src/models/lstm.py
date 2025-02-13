@@ -14,17 +14,19 @@ from rdkit import Chem, DataStructs
 from rdkit.Chem import AllChem, MACCSkeys
 from rdkit.Chem import Descriptors
 from sklearn.manifold import TSNE
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import DataLoader
 
-from data_generator import DataGenerator, InferenceDataGenerator, ShapAnalysesDataGenerator
+from data_generator import DataGenerator, InferenceDataGenerator
+
 from model import AttentionNetwork
 from smiles_featurizers import compute_descriptors
+from google_gemma import GemmaGoogle
 from swift_dock_logger import swift_dock_logger
 from trainer import train_model
 from utils import get_training_and_test_data, test_model, calculate_metrics, create_test_metrics, \
-    create_fold_predictions_and_target_df, save_dict, inference, get_data_splits_clustering
+    create_fold_predictions_and_target_df, save_dict, inference, get_data_splits_clustering, prepare_llm_instruction, \
+    get_target_seq, get_data_splits
 
 logger = swift_dock_logger()
 warnings.filterwarnings("ignore")
@@ -34,7 +36,7 @@ class SwiftDock:
                  project_info_dir, target_path,
                  train_size, test_size, val_size, identifier, number_of_folds, descriptor, feature_dim,
                  serialized_models_path, cross_validate, shap_analyses_dir, tsne_analyses_dir, data_csv, batch_size,
-                 number_of_workers, sequence):
+                 number_of_workers, sequence, split_base_on_clustering):
         self.target_path = target_path
         self.training_metrics_dir = training_metrics_dir
         self.training_and_testing_data = training_and_testing_data
@@ -68,17 +70,26 @@ class SwiftDock:
         self.batch_size = batch_size
         self.number_of_workers = number_of_workers
         self.sequence = sequence
+        self.split_base_on_clustering = False
 
     def split_data(self, cross_validate):
         train_name = f"{self.training_and_testing_data}{self.identifier}_train_data.csv"
         val_name = f"{self.training_and_testing_data}{self.identifier}_val_data.csv"
         test_name = f"{self.training_and_testing_data}{self.identifier}_test_data.csv"
 
-        if cross_validate:
+        if self.split_base_on_clustering:
             self.train_data, self.test_data, self.val_data = get_data_splits_clustering(self.target_path,
                                                                                         self.train_size,
                                                                                         self.test_size, self.val_data)
             self.val_data.to_csv(val_name, index=False)
+
+        elif not self.split_base_on_clustering:
+            self.train_data, self.test_data, self.val_data = get_data_splits(self.target_path,
+                                                                                        self.train_size,
+                                                                                        self.test_size, self.val_data)
+            self.val_data.to_csv(val_name, index=False)
+
+
         else:
             self.train_data, self.test_data = get_training_and_test_data(self.target_path, self.train_size,
                                                                          self.test_size)
@@ -95,7 +106,7 @@ class SwiftDock:
         train_dataloader = DataLoader(smiles_data_train, batch_size=self.batch_size, shuffle=True,
                                       num_workers=self.number_of_workers)
         criterion = nn.MSELoss()
-        net = AttentionNetwork(self.feature_dim, self.sequence)
+        net = AttentionNetwork(self.feature_dim, len(self.sequence))
         optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
         number_of_epochs = 7
         start = time.time()
@@ -137,31 +148,32 @@ class SwiftDock:
         number_of_epochs = 7
         start_time_train_val = time.time()
         for fold in range(self.number_of_folds):
-            net = AttentionNetwork(self.feature_dim, self.sequence)
+            net = AttentionNetwork(self.feature_dim, len(self.sequence))
             optimizer = torch.optim.Adam(net.parameters(), lr=0.001)
             temp_data = copy.deepcopy(df_split)
             temp_data.pop(fold)
-            temp_data = pd.concat(temp_data)
-            smiles_data_train = DataGenerator(df_split[fold], descriptor=self.descriptor)  # train
-            train_dataloader = DataLoader(smiles_data_train, batch_size=self.batch_size, shuffle=True,
-                                          num_workers=self.number_of_workers)
-            fold_test_dataloader_class = DataGenerator(temp_data, descriptor=self.descriptor)
-            fold_test_dataloader = DataLoader(fold_test_dataloader_class, batch_size=self.batch_size, shuffle=False,
+            if temp_data:
+                temp_data = pd.concat(temp_data)
+                smiles_data_train = DataGenerator(df_split[fold], descriptor=self.descriptor)  # train
+                train_dataloader = DataLoader(smiles_data_train, batch_size=self.batch_size, shuffle=True,
                                               num_workers=self.number_of_workers)
-            criterion = nn.MSELoss()
-            # training
-            model, metrics_dict = train_model(train_dataloader, net, criterion,
-                                              optimizer, number_of_epochs)
-            all_networks.append(model)
-            all_train_metrics.append(metrics_dict)
+                fold_test_dataloader_class = DataGenerator(temp_data, descriptor=self.descriptor)
+                fold_test_dataloader = DataLoader(fold_test_dataloader_class, batch_size=self.batch_size, shuffle=False,
+                                                  num_workers=self.number_of_workers)
+                criterion = nn.MSELoss()
+                # training
+                model, metrics_dict = train_model(train_dataloader, net, criterion,
+                                                  optimizer, number_of_epochs)
+                all_networks.append(model)
+                all_train_metrics.append(metrics_dict)
 
-            # Validate
-            fold_predictions = test_model(fold_test_dataloader, model)
-            test_smiles_target = temp_data['docking_score'].tolist()
-            mse, mae, rsquared = calculate_metrics(fold_predictions, test_smiles_target)
-            fold_mse = fold_mse + mse
-            fold_mae = fold_mae + mae
-            fold_rsquared = fold_rsquared + rsquared
+                # Validate
+                fold_predictions = test_model(fold_test_dataloader, model)
+                test_smiles_target = temp_data['docking_score'].tolist()
+                mse, mae, rsquared = calculate_metrics(fold_predictions, test_smiles_target)
+                fold_mse = fold_mse + mse
+                fold_mae = fold_mae + mae
+                fold_rsquared = fold_rsquared + rsquared
         self.cross_validation_time = (time.time() - start_time_train_val) / 60
         cross_validation_metrics = {"average_fold_mse": fold_mse / self.number_of_folds,
                                     "average_fold_mae": fold_mae / self.number_of_folds,
@@ -370,7 +382,7 @@ class SwiftDock:
         checkpoint = torch.load(model_path)
         descriptor = checkpoint['descriptor']
         num_of_features = checkpoint['num_of_features']
-        model = AttentionNetwork(num_of_features) # TODO: Update this to use sequecnce
+        model = AttentionNetwork(num_of_features)
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -410,3 +422,24 @@ class SwiftDock:
             save_dict({key: [value] for key, value in cluster_average_mae.items()}, cluster_output_file_path)
 
         logger.info('Inference is Done')
+    @staticmethod
+    def inference_with_llm(model_path, smile, target):
+        data = pd.DataFrame({'smile': [smile,smile]})
+        mol = Chem.MolFromSmiles(smile)
+        smile_properties = compute_descriptors(mol)
+        checkpoint = torch.load(model_path)
+        descriptor = checkpoint['descriptor']
+        num_of_features = checkpoint['num_of_features']
+        model = AttentionNetwork(num_of_features, len(get_target_seq(target)))
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        model.eval()
+        smiles_data_train = InferenceDataGenerator(data, descriptor=descriptor)  # train
+        inference_dataloader = DataLoader(smiles_data_train, batch_size=2, shuffle=False, num_workers=0)
+        predicted_docking_score = inference(inference_dataloader, model)
+        instruction = prepare_llm_instruction(smile, smile_properties, predicted_docking_score[0])
+        LLM = GemmaGoogle('../../weights_config.yml')
+        print('Predicting result...')
+        prediction = LLM.predict(instruction)
+        return prediction

@@ -5,8 +5,8 @@ import pandas as pd
 
 from lstm import SwiftDock
 from smiles_featurizers import mac_keys_fingerprints, one_hot_encode, morgan_fingerprints_mac_and_one_hot
+from utils import get_target_seq
 from swift_dock_logger import swift_dock_logger
-from seq_dict import sequence_dict
 
 logger = swift_dock_logger()
 
@@ -56,12 +56,9 @@ def get_descriptor_name(func):
     return descriptors.get(func.__name__, None)
 
 
-def get_target_seq(target_name):
-    return sequence_dict.get(target_name)
-
-
 def train_models(args, target, descriptor_data, size):
     number_of_folds = args.cross_validate
+    split_base_on_clustering = args.split_base_on_clustering
     identifier = f"lstm_{target}_{get_descriptor_name(descriptor_data[1])}_{size}"
     logger.info(f"Identifier {identifier}")
     identifier_data = f"{tsne_analyses_dir}{identifier}_data.csv"
@@ -82,12 +79,12 @@ def train_models(args, target, descriptor_data, size):
         project_info_dir, data_all, train_size, test_size, val_size, identifier,
         number_of_folds, descriptor_data[1], descriptor_data[0], serialized_models_path, args.cross_validate,
         shap_analyses_dir, tsne_analyses_dir, data_csv=data_csv, batch_size=args.batch_size,
-        number_of_workers=args.number_of_workers, sequence=sequence)
+        number_of_workers=args.number_of_workers, sequence=sequence,split_base_on_clustering=split_base_on_clustering)
 
     model.split_data(cross_validate=args.cross_validate)
     model.train()
 
-    if args.cross_validate:
+    if args.cross_validate and args.cross_validate > 1:
         model.diagnose()
     model.test()
     # model.shap_analyses()
@@ -103,6 +100,7 @@ if __name__ == '__main__':
     parser.add_argument("--cross_validate", type=int, help="If to use  cross validation")
     parser.add_argument("--batch_size", type=int, help="Batch size")
     parser.add_argument("--number_of_workers", type=int, help="Number of workers")
+    parser.add_argument('--split_base_on_clustering', action='store_true')
     args = parser.parse_args()
 
     for target in args.input:
