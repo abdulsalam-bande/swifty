@@ -1,124 +1,507 @@
-# Swift Dock 🚀
+from pathlib import Path
 
-In this study, we explored various machine learning (ML) models to forecast docking scores of ligands for specific target proteins, aiming to reduce the need for extensive docking calculations. Our primary goal? Find a regression model that can determine the docking scores of ligands from a chemical library in relation to a target protein. We achieve this with data from explicit docking of a select few molecules.
+readme = """# Swift Dock 🚀
 
-Among the ML models:
-- 🧠 An **LSTM-based Neural Network** (common in Natural Language Processing tasks like speech recognition). Combined with an attention mechanism, it effectively extracts ligand data. We used Pytorch for this.
-- 🌳 Models like **XGBoost**, **Decision Tree Regression**, and **Stochastic Gradient Descent** from libraries like XGBoost and scikit-learn.
+Swift Dock is a machine learning framework for predicting molecular docking scores of ligands against target proteins. The main goal is to reduce the need for expensive large-scale docking calculations by training regression models on a small subset of explicitly docked molecules, then using the trained models to predict docking scores for the remaining molecules in a chemical library.
 
-## Setting up the Environment 🛠️
+This project supports two main modeling workflows:
 
-1. Ensure Python 3.7 is installed 🐍
-2. Create a virtual environment and execute `pip install -r requirements.txt` 📦
-3. Navigate to 'swifty' and run `sudo chmod -R 777 logs` 📑
+- LSTM-based neural network with attention, implemented in PyTorch.
 
+- Classical machine learning regressors, including XGBoost, Decision Tree Regression, and Stochastic Gradient Descent Regression.
 
-## Setting up the Environment - Apple Silicon 🍎
+The project was originally developed as part of the thesis:
 
-1. Ensure Python 3.8 is installed 🐍
-2. Create a virtual environment and execute `pip -r apple-silcon-requirements.txt` 📦
-3. Navigate to 'swifty' and run `sudo chmod -R 777 logs` 📑
+Accelerating Molecular Docking Using Machine Learning Methods
 
-## Training Using LSTM 🧠
+---
 
-### Build & Validate 🛠️
+## Environment Setup 🛠️
 
-1. Add your target to the 'dataset' folder. Follow the format in `sample_input.csv`.
-2. Example: Lets say you want to train the lstm model for sample_input for mac descriptor and a training set size of 50 without cross validation. First,  Navigate to `src/models` and run the below command. Note: All possible descriptors are mac, onehot, and morgan_onehot_mac:
-#### Command
-```bash
-python main_lstm.py --input sample_input --descriptors mac --training_sizes 50 --cross_validation False 
-```
-#### Command Format
-```bash
-python main_lstm.py --input <YOUR_INPUT_FILE> --descriptors <DESCRIPTOR> --training_sizes <TRAINING_SIZE> --cross_validation <CROSS_VALIDATION> 
-```
+Swift Dock now uses Python 3.12 for both Apple Silicon and Intel Macs.
 
-This will produce a result directory with 5 categories. Each file follows the format: lstm_target_descriptor_training_size.
-- **project_info**: Details like training size and durations.
-- **serialized_models**: Trained model post-training.
-- **test_predictions**: Each docking score and corresponding model prediction.
-- **testing_metrics**: Metrics such as R-squared, mean absolute error from testing.
-- **validation_metrics**: Metrics from 5-fold cross-validation (only if `--cross_validation True`).
+### 1. Create a virtual environment
 
-### More examples 
-1. Training Using Multiple Descriptors
-```bash
-python main_lstm.py --input sample_input --descriptors mac morgan_onehot_mac --training_sizes 50 --cross_validation False 
-```
+From the project root:
 
-2. Training Using Multiple Descriptors and Multiple Training set sizes
-```bash
-python main_lstm.py --input sample_input --descriptors mac morgan_onehot_mac --training_sizes 50 100 --cross_validation False 
-```
+    python3.12 -m venv venv3.12
 
-3. Training Using Multiple Descriptors, Multiple Training set sizes and Multiple Targets
-```bash
-python main_lstm.py --input sample_input sample_input_2 --descriptors mac morgan_onehot_mac --training_sizes 50 100 --cross_validation False 
-```
+### 2. Activate the environment
 
-## Making Predictions with LSTM 🎯
-Run
-```bash
-python lstm_inference.py --input_file <YOUR_INPUT_FILE> --output_dir <YOUR_OUTPUT_DIRECTORY> --model_name <YOUR_MODEL_NAME>
-```
-Ensure than <YOUR_INPUT_FILE>  follows the format of molecules_for_prediction.csv in the 'dataset' folder.
-Example
-```bash
-python lstm_inference.py --input_file molecules_for_prediction.csv --output_dir prediction_results --model_name lstm_target_mac_50_model.pt
-```
+    source venv3.12/bin/activate
 
-## Training Using other models (from scikit-learn) 🌳
-1. Add your target to the 'dataset' folder. It should match the format of sample_input.csv
-2. Run this command to prepare the dataset
-#### Example
-```bash
-python create_fingerprint_data.py --input sample_input --descriptors mac
-```
-#### Command Format
-```bash
-python create_fingerprint_data.py --input <YOUR_INPUT_FILE> --descriptors <DESCRIPTOR>
-```
-### More examples For creating the datasets
-### Crate dataset for training using Multiple Descriptors
-```bash
-python create_fingerprint_data.py --input sample_input --descriptors mac morgan_onehot_mac
-```
+### 3. Install requirements
 
-3. Run this to train
-```bash
-python main_ml.py --input sample_input --descriptors mac --training_sizes 50 --regressor sgreg
-```
-Command Format
-```bash
-python main_ml.py --input <YOUR_INPUT_FILE> --descriptors <DESCRIPTOR> --training_sizes  <TRAINING_SIZE> --regressor  <REGRESSOR>
-```
-Note: All possible descriptors are mac, morgan_onehot_mac and onehot. All possible regressors are  sgreg, xgboost and decision_tree
+    pip install --upgrade pip setuptools wheel
 
-### More examples 
-1. Training Using Multiple Descriptors
-```bash
-python main_ml.py --input sample_input --descriptors mac  morgan_onehot_mac --training_sizes 50 --regressor sgreg
-```
+    pip install -r requirements.txt
 
-2. Training Using Multiple Descriptors and Multiple Training set sizes
-```bash
-python main_ml.py --input sample_input --descriptors mac morgan_onehot_mac --training_sizes 50 100 --regressor sgreg
-```
+### 4. Mark `src` as Sources Root in PyCharm
 
-2. Training Using Multiple Descriptors, Multiple Training set sizes and Multiple  Models
-```bash
-python main_ml.py --input sample_input --descriptors mac morgan_onehot_mac --training_sizes 50 100 --regressor sgreg xgboost
-```
+In PyCharm:
 
-This will give you a result directory with similar categories and file formats as mentioned in the LSTM section.
+    Right-click src → Mark Directory as → Sources Root
 
-## Making Predictions with other Models 🎯
-1. Your input CSV should match the format of molecules_for_prediction.csv in the 'dataset' folder.
-2. Run
-```bash
-python other_models_inference.py --input_file <YOUR_INPUT_FILE> --output_dir <YOUR_OUTPUT_DIRECTORY> --model_name <YOUR_MODEL_NAME>
-```
-Ensure than <YOUR_INPUT_FILE>  follows the format of molecules_for_prediction.csv in the 'dataset' folder.
+This is important so imports like the following work correctly:
 
+    from config.paths import DATASET_DIR
 
+    from core.lstm import SwiftDock
+
+    from features.smiles_featurizers import mac_keys_fingerprints
+
+---
+
+## Dataset Format
+
+Add your target CSV files inside the `datasets/` folder.
+
+Each dataset should follow this format:
+
+    smile,docking_score
+
+    CCO,-5.6
+
+    CCN,-6.1
+
+    CCC,-4.9
+
+Required columns:
+
+    smile
+
+    docking_score
+
+Example:
+
+    datasets/sample_input.csv
+
+---
+
+## Protein Sequences
+
+Target protein sequences are stored in:
+
+    src/config/seq_dict.py
+
+If you train an LSTM model on a new target, add the target name and sequence to `sequence_dict`.
+
+Example:
+
+    sequence_dict = {
+
+        "sample_input": "MEALIPHH",
+
+        "Drp1_GTPase": "MEALIPHH"
+
+    }
+
+The target name must match the dataset name.
+
+For example:
+
+    datasets/sample_input.csv
+
+should have:
+
+    "sample_input": "..."
+
+inside `seq_dict.py`.
+
+---
+
+# Training Using LSTM 🧠
+
+The LSTM workflow trains a PyTorch attention-based neural network directly from the CSV file.
+
+## Basic command
+
+From the project root:
+
+    python src/train/main_lstm.py --input sample_input --descriptors mac --training_sizes 50
+
+## Command format
+
+    python src/train/main_lstm.py --input <TARGET_NAME> --descriptors <DESCRIPTOR> --training_sizes <TRAINING_SIZE>
+
+Available descriptors:
+
+    mac
+
+    onehot
+
+    morgan_onehot_mac
+
+---
+
+## LSTM training with cross-validation
+
+Use `--cross_validate` with the number of folds.
+
+Example:
+
+    python src/train/main_lstm.py --input sample_input --descriptors mac --training_sizes 50 --cross_validate 5
+
+Note:
+
+    --cross_validate 1
+
+is treated like normal training without cross-validation.
+
+---
+
+## More LSTM examples
+
+### Train with multiple descriptors
+
+    python src/train/main_lstm.py --input sample_input --descriptors mac morgan_onehot_mac --training_sizes 50
+
+### Train with multiple descriptors and training sizes
+
+    python src/train/main_lstm.py --input sample_input --descriptors mac morgan_onehot_mac --training_sizes 50 100
+
+### Train with multiple targets
+
+    python src/train/main_lstm.py --input sample_input sample_input_2 --descriptors mac morgan_onehot_mac --training_sizes 50 100
+
+---
+
+## LSTM Output
+
+LSTM results are saved inside:
+
+    results_seq/
+
+Main output folders:
+
+    results_seq/project_info
+
+    results_seq/serialized_models
+
+    results_seq/test_predictions
+
+    results_seq/testing_metrics
+
+    results_seq/validation_metrics
+
+    results_seq/training_testing_data
+
+    results_seq/shap_analyses
+
+    results_seq/tsne_analyses
+
+File naming format:
+
+    lstm_<target>_<descriptor>_<training_size>_<output_type>
+
+Example:
+
+    lstm_sample_input_mac_50_model.pt
+
+---
+
+# Training Classical ML Models 🌳
+
+Classical ML models use precomputed feature files stored as `.dat` files.
+
+The workflow has two steps:
+
+1. Create fingerprint feature files.
+
+2. Train ML regressors.
+
+---
+
+## Step 1: Create Feature Files
+
+Before training classical ML models, create the `.dat` files.
+
+    python src/features/create_fingerprint_data.py --input sample_input --descriptors mac
+
+Command format:
+
+    python src/features/create_fingerprint_data.py --input <TARGET_NAME> --descriptors <DESCRIPTOR>
+
+Available descriptors:
+
+    mac
+
+    onehot
+
+    morgan_onehot_mac
+
+Example with multiple descriptors:
+
+    python src/features/create_fingerprint_data.py --input sample_input --descriptors mac morgan_onehot_mac
+
+This creates files like:
+
+    datasets/sample_input_mac.dat
+
+    datasets/sample_input_morgan_onehot_mac.dat
+
+---
+
+## Step 2: Train ML Models
+
+    python src/train/main_ml.py --input sample_input --descriptors mac --training_sizes 50 --regressors sgdreg
+
+Command format:
+
+    python src/train/main_ml.py --input <TARGET_NAME> --descriptors <DESCRIPTOR> --training_sizes <TRAINING_SIZE> --regressors <REGRESSOR>
+
+Available regressors:
+
+    sgdreg
+
+    xgboost
+
+    decision_tree
+
+Available descriptors:
+
+    mac
+
+    onehot
+
+    morgan_onehot_mac
+
+---
+
+## ML training with cross-validation
+
+    python src/train/main_ml.py --input sample_input --descriptors mac --training_sizes 50 --regressors xgboost --cross_validate true
+
+---
+
+## More ML examples
+
+### Train with multiple descriptors
+
+    python src/train/main_ml.py --input sample_input --descriptors mac morgan_onehot_mac --training_sizes 50 --regressors sgdreg
+
+### Train with multiple training sizes
+
+    python src/train/main_ml.py --input sample_input --descriptors mac morgan_onehot_mac --training_sizes 50 100 --regressors sgdreg
+
+### Train with multiple regressors
+
+    python src/train/main_ml.py --input sample_input --descriptors mac morgan_onehot_mac --training_sizes 50 100 --regressors sgdreg xgboost decision_tree
+
+---
+
+## ML Output
+
+Classical ML results are saved inside:
+
+    results/
+
+Main output folders:
+
+    results/project_info
+
+    results/serialized_models
+
+    results/test_predictions
+
+    results/testing_metrics
+
+    results/validation_metrics
+
+    results/shap_analyses
+
+File naming format:
+
+    <regressor>_<target>_<descriptor>_<training_size>_<output_type>
+
+Example:
+
+    xgboost_sample_input_mac_50_model.pkl
+
+---
+
+# Making Predictions
+
+## LSTM inference
+
+Use the LSTM inference script with a trained `.pt` model.
+
+Example:
+
+    python src/inference/lstm_inference.py --input_file molecules_for_prediction.csv --output_dir prediction_results --model_name lstm_sample_input_mac_50_model.pt
+
+Input CSV should contain:
+
+    smile
+
+    CCO
+
+    CCN
+
+    CCC
+
+If docking scores are available, they may also be included:
+
+    smile,docking_score
+
+    CCO,-5.6
+
+    CCN,-6.1
+
+---
+
+## Classical ML inference
+
+Use the ML inference script with a trained `.pkl` model.
+
+Example:
+
+    python src/inference/other_models_inference.py --input_file molecules_for_prediction.csv --output_dir prediction_results --model_name xgboost_sample_input_mac_50_model.pkl
+
+---
+
+# Configuration
+
+Project paths are managed in:
+
+    src/config/paths.py
+
+Training settings are managed in:
+
+    src/config/settings.py
+
+Protein sequences are managed in:
+
+    src/config/seq_dict.py
+
+This avoids hard-coded paths like:
+
+    ../../datasets
+
+    ../../results
+
+and makes the code easier to run from PyCharm or the terminal.
+
+---
+
+# Notes
+
+- Use Python 3.12.
+
+- Keep datasets inside the `datasets/` folder.
+
+- For LSTM training, make sure the target exists in `seq_dict.py`.
+
+- For classical ML models, create `.dat` feature files before training.
+
+- Use `--cross_validate 5` for real cross-validation.
+
+- `--cross_validate 1` behaves like normal training.
+
+---
+
+# Project Structure
+
+<details>
+
+<summary>Click to expand project structure</summary>
+
+    swifty/
+
+      datasets/
+
+        sample_input.csv
+
+        molecules_for_prediction.csv
+
+      results/
+
+        validation_metrics/
+
+        testing_metrics/
+
+        test_predictions/
+
+        project_info/
+
+        serialized_models/
+
+        shap_analyses/
+
+        tanimoto_results/
+
+      results_seq/
+
+        validation_metrics/
+
+        testing_metrics/
+
+        test_predictions/
+
+        project_info/
+
+        serialized_models/
+
+        shap_analyses/
+
+        tsne_analyses/
+
+        training_testing_data/
+
+      src/
+
+        config/
+
+          paths.py
+
+          settings.py
+
+          seq_dict.py
+
+        core/
+
+          lstm.py
+
+          ml_models.py
+
+          model.py
+
+          data_generator.py
+
+        features/
+
+          create_fingerprint_data.py
+
+          smiles_featurizers.py
+
+          calculate_tanimoto.py
+
+        train/
+
+          main_lstm.py
+
+          main_ml.py
+
+          trainer.py
+
+        inference/
+
+          lstm_inference.py
+
+          other_models_inference.py
+
+        utils/
+
+          utils.py
+
+          swift_dock_logger.py
+
+</details>
+
+"""
+
+path = Path("/mnt/data/README_compact.md")
+
+path.write_text(readme, encoding="utf-8")
+
+print(f"Created: {path}")
